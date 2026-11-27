@@ -1,20 +1,14 @@
 # Cufet Books
 
-A **book** is a module that comes in the box. This is the reference for the ones Cufet ships
-with — what they hold, and what pulling them admits.
+A **book** is a module that comes in the box. This is the reference for the ones Cufet ships with — what they hold, and what pulling them admits.
 
 Books come in three kinds, and the difference is what you get out of one:
 
 - **Standard-library books** have *members you call*: `math`, `collections`, `chance`.
-- **Language books** have no members at all. Pulling one admits a *syntax* — writing axioms, Cufet
-  blocks, or patterns: `the c-language`, `cufet` and `regex`.
-- **`blueprints`** admits no syntax and offers one member, `checksum`. Pulling it is mostly how a
-  file declares that it IS a build description, which is what lets `cufet build` refuse one that
-  does not.
+- **Language books** have no members at all. Pulling one admits a *syntax* — writing axioms, Cufet blocks, or patterns: `the c-language`, `cufet` and `regex`.
+- **`blueprints`** admits no syntax and offers one member, `checksum`. Pulling it is mostly how a file declares that it IS a build description, which is what lets `cufet build` refuse one that does not.
 
-`Pull` itself is a module mechanism one level above books, and lives in
-[REFERENCE.md](REFERENCE.md#modules-pull). For the language in full, see
-[REFERENCE.md](REFERENCE.md); for the rules stated precisely, see [GRAMMAR.md](GRAMMAR.md).
+`Pull` itself is a module mechanism one level above books, and lives in [REFERENCE.md](REFERENCE.md#modules-pull). For the language in full, see [REFERENCE.md](REFERENCE.md); for the rules stated precisely, see [GRAMMAR.md](GRAMMAR.md).
 
 ---
 
@@ -43,21 +37,13 @@ Books come in three kinds, and the difference is what you get out of one:
 
 ### Books (the standard library)
 
-Capability that most programs do not need lives in a **book** — a module that comes in the
-box. Brought into scope for a block with `Pull a book on <name>. … Done.`, with members
-reached by the possessive: `math's square-root of (144)`.
+Capability that most programs do not need lives in a **book** — a module that comes in the box. Brought into scope for a block with `Pull a book on <name>. … Done.`, with members reached by the possessive: `math's square-root of (144)`.
 
-The `book on <name>` spelling is **required** for a book, because the bundled names read badly
-without the noun — "Pull a math." A book is still a module, and `Pull` asks it the same
-question; only the spelling differs.
+The `book on <name>` spelling is **required** for a book, because the bundled names read badly without the noun — "Pull a math." A book is still a module, and `Pull` asks it the same question; only the spelling differs.
 
-Books are resolved at compile time. There is no dynamic loading, and no external loader
-yet. The bundled books are `math`, `collections`, `chance` and `blueprints`, plus the
-**language books** `the c-language`, `cufet` and `regex` — pulled for what they let you *write* rather than for
-anything you call on them, which is why they offer no members.
+Books are resolved at compile time. There is no dynamic loading, and no external loader yet. The bundled books are `math`, `collections`, `chance` and `blueprints`, plus the **language books** `the c-language`, `cufet` and `regex` — pulled for what they let you *write* rather than for anything you call on them, which is why they offer no members.
 
-**Several at once** — `Pull books on …` (plural) takes a comma-separated list, with an
-optional `and` before the last. One `Done.` closes the block for all of them:
+**Several at once** — `Pull books on …` (plural) takes a comma-separated list, with an optional `and` before the last. One `Done.` closes the block for all of them:
 
 ```cufet
 Pull books on math, collections, and chance.
@@ -94,16 +80,9 @@ Done.
 3.1415926535897932384626433833
 ```
 
-`math` provides `square-root`, `log`, `exp`, `power`, `floor`, `ceiling`, `round`,
-`absolute-value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
-decimal operations, and `pi` and `e` are decimal-precise constants (28 fractional digits,
-correctly rounded).
+`math` provides `square-root`, `log`, `exp`, `power`, `floor`, `ceiling`, `round`, `absolute-value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact decimal operations, and `pi` and `e` are decimal-precise constants (28 fractional digits, correctly rounded).
 
-**The whole book is written in Cufet, and nothing in it touches a `double`.** The square
-root is Newton–Raphson on the decimal; `log` and `exp` reduce their argument and sum a series;
-`power` is exact for a whole-number exponent, which is also the only kind a negative base
-accepts. Because both backends run the same algorithm on the same arithmetic, they give the
-same answer everywhere.
+**The whole book is written in Cufet, and nothing in it touches a `double`.** The square root is Newton–Raphson on the decimal; `log` and `exp` reduce their argument and sum a series; `power` is exact for a whole-number exponent, which is also the only kind a negative base accepts. Because both backends run the same algorithm on the same arithmetic, they give the same answer everywhere.
 
 ```cufet
 Pull a book on collections.
@@ -119,15 +98,9 @@ Done.
 (5, 3, 9)
 ```
 
-`collections` provides `minimum`, `maximum`, `average`, and `unique` (first occurrence
-wins, order preserved). Each yields void for an empty series. `average` is exact — it
-does not go through floating point. The `matrix`, `set` and `chase` types also live in this book;
-see below.
+`collections` provides `minimum`, `maximum`, `average`, and `unique` (first occurrence wins, order preserved). Each yields void for an empty series. `average` is exact — it does not go through floating point. The `matrix`, `set` and `chase` types also live in this book; see below.
 
-`chance` provides random numbers, random selection, and shuffling, plus `Seed the chance
-with <n>.` Seeding makes a run reproducible **within one backend**; the interpreter and a
-compiled binary use different generators, so a seeded program is not expected to produce
-the same sequence in both.
+`chance` provides random numbers, random selection, and shuffling, plus `Seed the chance with <n>.` Seeding makes a run reproducible **within one backend**; the interpreter and a compiled binary use different generators, so a seeded program is not expected to produce the same sequence in both.
 
 ---
 
@@ -135,12 +108,7 @@ the same sequence in both.
 
 `matrix` is a rectangular grid of numbers, available inside `Pull a book on collections.`
 
-**Scaling by a number needs no failure handling.** `m * 2` and `2 * m` multiply every element,
-and there are no dimensions to disagree — so scaling gives a plain `matrix`, unlike `+`, `-` and
-matrix product, which are fallible because two matrices can be the wrong shapes for each other.
-Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, so `+`, `-`
-and `*` on matrices must be handled with `Try to:`, `but on failure`, or `or pass the
-failure off`. Using one bare is a static type error.
+**Scaling by a number needs no failure handling.** `m * 2` and `2 * m` multiply every element, and there are no dimensions to disagree — so scaling gives a plain `matrix`, unlike `+`, `-` and matrix product, which are fallible because two matrices can be the wrong shapes for each other. Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, so `+`, `-` and `*` on matrices must be handled with `Try to:`, `but on failure`, or `or pass the failure off`. Using one bare is a static type error.
 
 ```cufet
 Pull a book on collections.
@@ -172,13 +140,9 @@ matrix((19, 22), (43, 50))
 failed: matrices must have equal dimensions for addition
 ```
 
-`*` is matrix multiplication, not element-wise. `collections's transpose of (m)` flips
-rows and columns. There is no matrix division — it would require inversion, which is
-deliberately not provided.
+`*` is matrix multiplication, not element-wise. `collections's transpose of (m)` flips rows and columns. There is no matrix division — it would require inversion, which is deliberately not provided.
 
-**Reading and writing a cell.** `the item at (row, column) of m` is the accessor, and both
-indices are **1-based**, like every other position in Cufet. The same phrase on the left of
-`becomes` writes the cell. `the rows of m` and `the columns of m` are the dimensions.
+**Reading and writing a cell.** `the item at (row, column) of m` is the accessor, and both indices are **1-based**, like every other position in Cufet. The same phrase on the left of `becomes` writes the cell. `the rows of m` and `the columns of m` are the dimensions.
 
 ```cufet
 Pull a book on collections.
@@ -200,9 +164,7 @@ matrix((0, 7, 0), (0, 0, 9))
 
 A cell holds a number and nothing else — that is what keeps matrix arithmetic exact.
 
-**A matrix is a reference type**, so a write is visible through every name for it, and a
-matrix handed to a function is the caller's matrix rather than a copy. That is what lets a
-function update a board in place:
+**A matrix is a reference type**, so a write is visible through every name for it, and a matrix handed to a function is the caller's matrix rather than a copy. That is what lets a function update a board in place:
 
 ```cufet
 Pull a book on collections.
@@ -219,8 +181,7 @@ Done.
 matrix((0, 0), (1, 0))
 ```
 
-An index outside the matrix is a runtime failure naming the bound it crossed, the same on a
-read and on a write:
+An index outside the matrix is a runtime failure naming the bound it crossed, the same on a read and on a write:
 
 ```
 Row index 3 is out of range — this matrix has 2 row(s) (line 3).
@@ -249,9 +210,7 @@ Done.
 zoe is known
 ```
 
-**A set holds each thing once.** `Insert` means *after this, the value is in there* — inserting
-what is already present is not an error and not a second copy. That is the whole difference from a
-series.
+**A set holds each thing once.** `Insert` means *after this, the value is in there* — inserting what is already present is not an error and not a second copy. That is the whole difference from a series.
 
 **It iterates in insertion order**, and the same order on both backends:
 
@@ -270,8 +229,7 @@ adam
 mira
 ```
 
-**It prints as what it holds**, in that same order and spelled as a series is — a set reads as a
-collection of things, not as the map it is stored as:
+**It prints as what it holds**, in that same order and spelled as a series is — a set reads as a collection of things, not as the map it is stored as:
 
 ```cufet
 Pull a book on collections.
@@ -284,27 +242,21 @@ Done.
 (zoe, adam, mira)
 ```
 
-**A set is a map with the value removed**, and it is stored as exactly that: the element keyed to
-itself. So what may be an element, how elements compare, and the iteration order are the map's
-answers already — see [Maps in REFERENCE.md](REFERENCE.md#maps) for which types may be a key.
+**A set is a map with the value removed**, and it is stored as exactly that: the element keyed to itself. So what may be an element, how elements compare, and the iteration order are the map's answers already — see [Maps in REFERENCE.md](REFERENCE.md#maps) for which types may be a key.
 
 Three refusals, each naming the word it wants rather than the type it got:
 
-- `the size of <set>` → *write `the number of`*. A set reads as a collection of things, so it takes
-  the series spelling.
+- `the size of <set>` → *write `the number of`*. A set reads as a collection of things, so it takes the series spelling.
 - `<map> has X` → *write `has a key for`*. A set holds things; a map holds keys.
 - `Insert X after the first item of <set>` → a set has no positions.
 
-**There is no removal.** Nothing has needed to take something back out yet, and a spelling
-invented without a caller is one that has to be lived with.
+**There is no removal.** Nothing has needed to take something back out yet, and a spelling invented without a caller is one that has to be lived with.
 
 ---
 
 ### Chase (a mutable character buffer)
 
-`text` is an immutable value, so building one a piece at a time is quadratic — every join rebuilds
-the whole string. A **chase** is its mutable companion: you build in it, then cross to `text` once
-at the end, which turns O(n²) into O(n).
+`text` is an immutable value, so building one a piece at a time is quadratic — every join rebuilds the whole string. A **chase** is its mutable companion: you build in it, then cross to `text` once at the end, which turns O(n²) into O(n).
 
 It comes from the `collections` book, and its name is only spent where that book was pulled:
 
@@ -320,8 +272,7 @@ Pull a book on collections.
 Done.
 ```
 
-Everything a collection does, it does — reading a position, inserting at one, removing by position
-or by value, setting, iterating, and sorting:
+Everything a collection does, it does — reading a position, inserting at one, removing by position or by value, setting, iterating, and sorting:
 
 ```cufet
 Pull a book on collections.
@@ -338,23 +289,13 @@ Pull a book on collections.
 Done.
 ```
 
-- **`item n of` gives a one-character text**, and iterating binds each character the same way —
-  the language has no separate character type.
-- **Setting a position takes exactly one character.** `Item 1 of out becomes "ab".` is refused
-  when it runs, because a text’s length is not known before then. Keeping the first character and
-  dropping the rest would be a silent resolution; `Insert` is the operation that takes however
-  many.
+- **`item n of` gives a one-character text**, and iterating binds each character the same way — the language has no separate character type.
+- **Setting a position takes exactly one character.** `Item 1 of out becomes "ab".` is refused when it runs, because a text’s length is not known before then. Keeping the first character and dropping the rest would be a silent resolution; `Insert` is the operation that takes however many.
 - **Out of range says what a series says**, word for word — both go through one resolver.
-- **`sorted` and `sorted in reverse` give back a chase**, ordered by code point, leaving the buffer
-  alone — a copy, exactly as a series sort is. There is nothing to sort *by*: characters have no
-  fields.
-- **`Remove <one character> from`** takes the first occurrence out. Like setting a position, it
-  takes exactly one character and refuses a longer text when it runs.
+- **`sorted` and `sorted in reverse` give back a chase**, ordered by code point, leaving the buffer alone — a copy, exactly as a series sort is. There is nothing to sort *by*: characters have no fields.
+- **`Remove <one character> from`** takes the first occurrence out. Like setting a position, it takes exactly one character and refuses a longer text when it runs.
 
-**A number inserted into a chase is a character's CODE POINT.** This is the one type in the
-language where that reading exists, and it is not a conversion — a chase holds code points, so
-naming an element by its number is naming the element. A one-character text is the other way to
-write the same thing.
+**A number inserted into a chase is a character's CODE POINT.** This is the one type in the language where that reading exists, and it is not a conversion — a chase holds code points, so naming an element by its number is naming the element. A one-character text is the other way to write the same thing.
 
 ```cufet
 Pull a book on collections.
@@ -373,13 +314,9 @@ Hi
 27
 ```
 
-**The digits are still sayable, and you say so** — `Insert 27 converted to text` appends `2` and
-`7`. Nothing converts silently here, and `Insert` never has: `Insert 27 into <series of text>` is
-refused, so no reader arrives expecting it to stringify.
+**The digits are still sayable, and you say so** — `Insert 27 converted to text` appends `2` and `7`. Nothing converts silently here, and `Insert` never has: `Insert 27 into <series of text>` is refused, so no reader arrives expecting it to stringify.
 
-**This is what makes an escape sequence writable.** A text literal escapes `\n`, `\t`, `\r`, `\\`,
-`\"`, `\{` and `\}` and nothing else, so an ESC character had no spelling anywhere — and clearing a
-terminal, which is the most ordinary thing a full-screen program does, needed a C axiom:
+**This is what makes an escape sequence writable.** A text literal escapes `\n`, `\t`, `\r`, `\\`, `\"`, `\{` and `\}` and nothing else, so an ESC character had no spelling anywhere — and clearing a terminal, which is the most ordinary thing a full-screen program does, needed a C axiom:
 
 ```cufet
 Pull a book on collections.
@@ -393,36 +330,21 @@ Done.
 4
 ```
 
-A code point outside 0–U+10FFFF, a lone surrogate, or a number with a fractional part is not a
-character. Written out, it is refused before the program runs; computed, it fails where it is
-evaluated, with the same words.
+A code point outside 0–U+10FFFF, a lone surrogate, or a number with a fractional part is not a character. Written out, it is refused before the program runs; computed, it fails where it is evaluated, with the same words.
 
-[`examples/systems/life.cufe`](../examples/systems/life.cufe) is why this exists — Conway's Game
-of Life drawing in place, which needs an ESC character and so could not be written at all until a
-number could name one.
+[`examples/systems/life.cufe`](../examples/systems/life.cufe) is why this exists — Conway's Game of Life drawing in place, which needs an ESC character and so could not be written at all until a number could name one.
 
-**That first sentence is a promise, and it is tested rather than asserted:**
-`EverySeriesOperation_WorksOnAChase` walks the series surface against a chase.
+**That first sentence is a promise, and it is tested rather than asserted:** `EverySeriesOperation_WorksOnAChase` walks the series surface against a chase.
 
-- **It follows COLLECTION conventions, not text ones.** `Insert`, `the number of`, and printing
-  that looks like a collection. It deliberately grows no parallel copy of text’s API — no
-  `trimmed`, no interpolation holes — because the moment it does, the split stops meaning anything
-  and a reader is back to asking which of the two they are holding.
-- **`Insert` takes a text and appends its characters**, however many. Appending what you just
-  built is the operation a buffer exists for.
-- **`State` prints it as the collection it is** — `(h, e, l, l, o)`, never `hello`. When the text
-  is what you want, `converted to text` says so.
-- **`converted to text` is an explicit COPY.** The buffer lives on, independent. Not a consuming
-  move, and not a view — a `text` that changed under you would break the one thing `text` promises.
-- **Elements are characters, stored four bytes each.** `ö` is one character here, not two bytes,
-  and so is a character outside the basic plane.
+- **It follows COLLECTION conventions, not text ones.** `Insert`, `the number of`, and printing that looks like a collection. It deliberately grows no parallel copy of text’s API — no `trimmed`, no interpolation holes — because the moment it does, the split stops meaning anything and a reader is back to asking which of the two they are holding.
+- **`Insert` takes a text and appends its characters**, however many. Appending what you just built is the operation a buffer exists for.
+- **`State` prints it as the collection it is** — `(h, e, l, l, o)`, never `hello`. When the text is what you want, `converted to text` says so.
+- **`converted to text` is an explicit COPY.** The buffer lives on, independent. Not a consuming move, and not a view — a `text` that changed under you would break the one thing `text` promises.
+- **Elements are characters, stored four bytes each.** `ö` is one character here, not two bytes, and so is a character outside the basic plane.
 - **Reference-typed and region-allocated**, like a series or a map: it dies with its rabbit.
 - Two chases compare by **content**, as a series does.
 
-**Outside the pull, `chase` is an ordinary name.** A word spent on one construct is a name a
-writer loses forever, so a type a book introduces only claims its name where that book was asked
-for — `Define chase as 5.` is a perfectly good line in a program that never pulls `collections`.
-The cost is the other direction: inside the pull, that line is gone.
+**Outside the pull, `chase` is an ordinary name.** A word spent on one construct is a name a writer loses forever, so a type a book introduces only claims its name where that book was asked for — `Define chase as 5.` is a perfectly good line in a program that never pulls `collections`. The cost is the other direction: inside the pull, that line is gone.
 
 ---
 
@@ -432,8 +354,7 @@ The cost is the other direction: inside the pull, that line is gone.
 
 ### Foreign source (`axiom`)
 
-**An axiom is source in another language, held as a value.** Cufet cannot check a C listing
-and does not pretend to — it takes it as given, which is what the word means.
+**An axiom is source in another language, held as a value.** Cufet cannot check a C listing and does not pretend to — it takes it as given, which is what the word means.
 
 ```cufet
 Pull a book on the c-language.
@@ -444,16 +365,11 @@ Done.
 
 Three parts, and each does one job:
 
-- **`Pull a book on the c-language.`** — a book on a *language* has no members. Pulling it is
-  what admits C axioms in this block, and it is the line a reader can see that on.
-- **`[ ... ]`** — square brackets appear nowhere else in Cufet. Inside them nothing is Cufet:
-  no interpolation, no escapes, no comments. Bracket pairs nest, so `[argv[0]]` is fine.
-- **`c-language number`** before the name — the tag says who reads the text, and the type says
-  what running it gives back. The full spelling is `Define the c-language number axiom get-pid
-  as [ ... ].`; both middle words drop, but the tag can never be left out.
+- **`Pull a book on the c-language.`** — a book on a *language* has no members. Pulling it is what admits C axioms in this block, and it is the line a reader can see that on.
+- **`[ ... ]`** — square brackets appear nowhere else in Cufet. Inside them nothing is Cufet: no interpolation, no escapes, no comments. Bracket pairs nest, so `[argv[0]]` is fine.
+- **`c-language number`** before the name — the tag says who reads the text, and the type says what running it gives back. The full spelling is `Define the c-language number axiom get-pid as [ ... ].`; both middle words drop, but the tag can never be left out.
 
-**The result is declared where the axiom is written**, by the person who knows. Cufet cannot read
-a C listing: an `int` might be a count, a truth, or a file handle, and only you can say which.
+**The result is declared where the axiom is written**, by the person who knows. Cufet cannot read a C listing: an `int` might be a count, a truth, or a file handle, and only you can say which.
 
 ```cufet
 Pull a book on the c-language.
@@ -464,8 +380,7 @@ Done.
 
 A call composes anywhere an ordinary call does.
 
-**The source is spliced where an expression goes**, so a loop needs C's own way of putting
-statements there — a statement-expression, `({ ... })`, whose last expression is its value:
+**The source is spliced where an expression goes**, so a loop needs C's own way of putting statements there — a statement-expression, `({ ... })`, whose last expression is its value:
 
 ```cufet
 Pull a book on the c-language.
@@ -478,14 +393,11 @@ Done.
 55
 ```
 
-Written bare — `[int s = 0; for (...) ...; return s;]` — gcc rejects it, because that text is
-placed where a value is expected rather than where a body is.
+Written bare — `[int s = 0; for (...) ...; return s;]` — gcc rejects it, because that text is placed where a value is expected rather than where a body is.
 
 #### An axiom that says nothing is source
 
-**Saying what an axiom gives back is what makes it something to RUN.** An axiom that says nothing
-is **source**: it is pasted once, above everything else foreign in the program, and what it declares
-is in scope for every axiom after it.
+**Saying what an axiom gives back is what makes it something to RUN.** An axiom that says nothing is **source**: it is pasted once, above everything else foreign in the program, and what it declares is in scope for every axiom after it.
 
 ```cufet
 Pull a book on the c-language.
@@ -498,18 +410,13 @@ Done.
 4
 ```
 
-That is how two axioms share a helper. One declared *inside* an axiom belongs to that axiom alone,
-so without this each would carry its own copy.
+That is how two axioms share a helper. One declared *inside* an axiom belongs to that axiom alone, so without this each would carry its own copy.
 
-A preamble **takes no parameters** — a parameter's value comes from a call, and nothing calls
-this. And nothing in it is checked: a wrapper's guards ask what an expression produces, and a
-declaration produces nothing, so what you write reaches the C compiler exactly as written.
+A preamble **takes no parameters** — a parameter's value comes from a call, and nothing calls this. And nothing in it is checked: a wrapper's guards ask what an expression produces, and a declaration produces nothing, so what you write reaches the C compiler exactly as written.
 
 #### Source with holes: C written by the program
 
-**Resultless C source that takes parameters is never pasted.** Each `the <name>` in it is a hole,
-and `on (…)` WITHOUT `cast` fills them and hands the source back, still unrun, for a program that
-writes C rather than runs it:
+**Resultless C source that takes parameters is never pasted.** Each `the <name>` in it is a hole, and `on (…)` WITHOUT `cast` fills them and hands the source back, still unrun, for a program that writes C rather than runs it:
 
 ```cufet
 Pull a book on the c-language.
@@ -522,9 +429,7 @@ Done.
 static int the type-c_eq(int a, int b) { return a == b; }
 ```
 
-`the type-c_eq` is not a hole, because a letter follows the name, so it stays in the text as
-written. Where it is the ONLY place a name appears, the name is declared and never used, and that
-is refused. A name built from pieces is built in Cufet and handed in as a term of its own:
+`the type-c_eq` is not a hole, because a letter follows the name, so it stays in the text as written. Where it is the ONLY place a name appears, the name is declared and never used, and that is refused. A name built from pieces is built in Cufet and handed in as a term of its own:
 
 ```cufet
 Pull a book on the c-language.
@@ -538,16 +443,11 @@ Done.
 static int int_eq(int a, int b) { return a == b; }
 ```
 
-What a hole takes is decided by its parameter. `the c-language axiom test` takes complete C source:
-a filled axiom, or a bare `[…]`, which takes its language from the hole. `the term type-c` takes a
-text, refused unless it is a C name. A `text`, `number` or `fact` goes in as C's own literal, quoted
-and escaped, so a value never becomes code. GRAMMAR's *Source with holes* has the rules.
+What a hole takes is decided by its parameter. `the c-language axiom test` takes complete C source: a filled axiom, or a bare `[…]`, which takes its language from the hole. `the term type-c` takes a text, refused unless it is a C name. A `text`, `number` or `fact` goes in as C's own literal, quoted and escaped, so a value never becomes code. GRAMMAR's *Source with holes* has the rules.
 
 #### An axiom is a value
 
-**An axiom that says what it gives back can be passed around unrun** — handed to a function, kept
-in a series, held in an object's field — and run wherever it lands. The type is written the way its
-declaration reads, with `given (…)` saying what it takes exactly as a function type does:
+**An axiom that says what it gives back can be passed around unrun** — handed to a function, kept in a series, held in an object's field — and run wherever it lands. The type is written the way its declaration reads, with `given (…)` saying what it takes exactly as a function type does:
 
 ```cufet
 Pull a book on the c-language.
@@ -566,29 +466,17 @@ Done.
 104
 ```
 
-Which axiom runs is decided there by the loop, not by the text. The foreign source is still fixed
-where it was written — nothing is assembled, and nothing can be injected — and what moves is the
-axiom itself.
+Which axiom runs is decided there by the loop, not by the text. The foreign source is still fixed where it was written — nothing is assembled, and nothing can be injected — and what moves is the axiom itself.
 
-**Saying the result is what makes it writable as a type.** `the c-language axiom given (the text)
-job` is refused: running it has to produce something, and an axiom that never said what has no shape
-to be handed around as. Add the result and it is accepted. `the c-language axiom job`, taking
-nothing, is the one exception: it is complete C source as a value, the kind a code hole takes.
+**Saying the result is what makes it writable as a type.** `the c-language axiom given (the text) job` is refused: running it has to produce something, and an axiom that never said what has no shape to be handed around as. Add the result and it is accepted. `the c-language axiom job`, taking nothing, is the one exception: it is complete C source as a value, the kind a code hole takes.
 
-**An axiom carrying `and free it with` travels too.** The freeing is registered where the address
-is ACQUIRED, so it happens once per call however that call was reached — by name, or through a
-value that arrived from somewhere else entirely. The rabbit rule is unchanged: an address still
-cannot be held outside a rabbit block, and it is still freed when that block ends, exception
-included.
+**An axiom carrying `and free it with` travels too.** The freeing is registered where the address is ACQUIRED, so it happens once per call however that call was reached — by name, or through a value that arrived from somewhere else entirely. The rabbit rule is unchanged: an address still cannot be held outside a rabbit block, and it is still freed when that block ends, exception included.
 
-An axiom prints as `<axiom>`, the way a function prints as `<function>` — the source of something
-you run is not something a program reads back. C source as a value is the exception, and prints as
-its text.
+An axiom prints as `<axiom>`, the way a function prints as `<function>` — the source of something you run is not something a program reads back. C source as a value is the exception, and prints as its text.
 
 #### Handing values to C
 
-An axiom declares what it takes the way every Cufet body does, and reaches those values inside
-the foreign text **by the article**:
+An axiom declares what it takes the way every Cufet body does, and reaches those values inside the foreign text **by the article**:
 
 ```cufet
 Pull a book on the c-language.
@@ -598,14 +486,9 @@ Pull a book on the c-language.
 Done.
 ```
 
-`the subject` works as a marker because it is never valid C — English sitting in code that is not
-English — so nothing has to be escaped. It reads as the line above it: `the text subject` in the
-declaration, `the subject` in the source.
+`the subject` works as a marker because it is never valid C — English sitting in code that is not English — so nothing has to be escaped. It reads as the line above it: `the text subject` in the declaration, `the subject` in the source.
 
-**Only values cross, never text.** C receives a marshalled number or string; the axiom itself is
-fixed where you wrote it and cannot be built up from pieces at run time. That is the same
-guarantee `Run "grep" with arguments (…)` gives, and the same reason nothing can be injected into
-it.
+**Only values cross, never text.** C receives a marshalled number or string; the axiom itself is fixed where you wrote it and cannot be built up from pieces at run time. That is the same guarantee `Run "grep" with arguments (…)` gives, and the same reason nothing can be injected into it.
 
 | You pass | C receives |
 | --- | --- |
@@ -613,11 +496,9 @@ it.
 | `text` | `const char*`, UTF-8, valid for the length of the call |
 | `fact` | `int`, 1 or 0 |
 
-A parameter the source never mentions is refused — only names you declared are substituted, so
-a misspelling would otherwise reach the C compiler as a stray `the`.
+A parameter the source never mentions is refused — only names you declared are substituted, so a misspelling would otherwise reach the C compiler as a stray `the`.
 
-A reserved word cannot be a parameter name. `path` and `where` are two, so write `file-path` and
-`folder`.
+A reserved word cannot be a parameter name. `path` and `where` are two, so write `file-path` and `folder`.
 
 **Call one as a statement when you only want the effect**, and the answer is discarded:
 
@@ -625,9 +506,7 @@ A reserved word cannot be a parameter name. `path` and `where` are two, so write
 Cast close-dir on (handle).
 ```
 
-Everything is checked the same way — the language must be pulled, the arguments must fit, and the
-declaration must still say what it gives back, because the C wrapper is built from that whether or
-not anyone reads the answer.
+Everything is checked the same way — the language must be pulled, the arguments must fit, and the declaration must still say what it gives back, because the C wrapper is built from that whether or not anyone reads the answer.
 
 #### What crosses the boundary
 
@@ -650,13 +529,9 @@ Pull a book on the c-language.
 Done.
 ```
 
-**A text result must be `voidable text`, never a plain `text`.** C says nothing is there by
-handing back nothing — `getenv` on a name that is not set, `strerror` on a code it does not know —
-so absence arrives in the mechanism Cufet already has instead of a promise C cannot keep.
+**A text result must be `voidable text`, never a plain `text`.** C says nothing is there by handing back nothing — `getenv` on a name that is not set, `strerror` on a code it does not know — so absence arrives in the mechanism Cufet already has instead of a promise C cannot keep.
 
-**A text is copied out of C's memory.** The bytes belong to C: `strerror` hands back a buffer the
-next call overwrites, and anything allocated dies when its owner says so. A Cufet text pointing at
-either would change under your program, so it never points at either.
+**A text is copied out of C's memory.** The bytes belong to C: `strerror` hands back a buffer the next call overwrites, and anything allocated dies when its owner says so. A Cufet text pointing at either would change under your program, so it never points at either.
 
 Everything else is **refused rather than approximated**:
 
@@ -666,14 +541,11 @@ Everything else is **refused rather than approximated**:
 | a whole number, for a `voidable number` | refused — declare it a plain `number` instead |
 | anything else, for a `voidable text` | refused — it has to be a C string |
 
-These are refused by the C compiler, which is where the type is actually known. The first two are
-one question asked from either side: `number` is exact and `voidable number` is the one conversion
-that is not, so which you meant is worth saying rather than guessing.
+These are refused by the C compiler, which is where the type is actually known. The first two are one question asked from either side: `number` is exact and `voidable number` is the one conversion that is not, so which you meant is worth saying rather than guessing.
 
 #### Addresses — holding a C pointer
 
-Some C is a handle you get, use, and give back: `opendir`/`readdir`/`closedir`, `fopen`/`fclose`.
-That handle crosses as an **`address`** — opaque, held, and handed back, never read through:
+Some C is a handle you get, use, and give back: `opendir`/`readdir`/`closedir`, `fopen`/`fclose`. That handle crosses as an **`address`** — opaque, held, and handed back, never read through:
 
 ```cufet
 Pull a book on the c-language.
@@ -696,23 +568,13 @@ Pull a book on the c-language.
 Done.
 ```
 
-**There is one kind of address.** A `char*` and a `FILE*` are the same type here — what differs is
-not the value but what you do with it. There is **no address-of operator**: an address only ever
-comes *from* C and goes *back* to C, so Cufet never makes one, and there is no layout question to
-answer because a struct is C's idea and struct work happens in C.
+**There is one kind of address.** A `char*` and a `FILE*` are the same type here — what differs is not the value but what you do with it. There is **no address-of operator**: an address only ever comes *from* C and goes *back* to C, so Cufet never makes one, and there is no layout question to answer because a struct is C's idea and struct work happens in C.
 
-**An address may only be held inside a rabbit, and cannot outlive one.** That block already means
-region-scoped memory work, so it is also where a pointer's lifetime is answered for — the rabbit
-that knows when the region dies is what knows when the pointer dies. Holding one outside a rabbit
-is a static error, and so is putting one somewhere that outlasts the block: an address obeys the
-same escape rule as a series or a map, so inserting one into a series declared outside the rabbit
-is refused with "this value lives in a shorter-lived rabbit region than its destination".
+**An address may only be held inside a rabbit, and cannot outlive one.** That block already means region-scoped memory work, so it is also where a pointer's lifetime is answered for — the rabbit that knows when the region dies is what knows when the pointer dies. Holding one outside a rabbit is a static error, and so is putting one somewhere that outlasts the block: an address obeys the same escape rule as a series or a map, so inserting one into a series declared outside the rabbit is refused with "this value lives in a shorter-lived rabbit region than its destination".
 
-**NULL is void**, as everywhere else on this boundary, which is why the result is a `voidable
-address` — `fopen`, `malloc`, `getenv` and `opendir` all report failure that way.
+**NULL is void**, as everywhere else on this boundary, which is why the result is a `voidable address` — `fopen`, `malloc`, `getenv` and `opendir` all report failure that way.
 
-An address prints as `<address>`, never as its value: a handle is a different number in every
-process, so printing it could tell you nothing you could rely on.
+An address prints as `<address>`, never as its value: a handle is a different number in every process, so printing it could tell you nothing you could rely on.
 
 **`the text at <address>` reads through one**, and it is the only read there is:
 
@@ -737,17 +599,11 @@ Pull a book on the c-language.
 Done.
 ```
 
-**It always copies.** What you get back is `voidable text` that belongs to the rabbit, never a view
-into C's memory — so it survives C freeing or overwriting the block it came from, which `readdir`
-does on the very next call. Reading through a **void** address is void, not a crash.
+**It always copies.** What you get back is `voidable text` that belongs to the rabbit, never a view into C's memory — so it survives C freeing or overwriting the block it came from, which `readdir` does on the very next call. Reading through a **void** address is void, not a crash.
 
-**Reading a struct or a scalar is not offered, and is not missing.** An axiom can project a field
-(`[the point->x]`) or declare a local and hand it back, so those values come home as ordinary
-results. Text is the one case with no single-expression answer on the C side, because the bytes
-belong to C and have to be copied out.
+**Reading a struct or a scalar is not offered, and is not missing.** An axiom can project a field (`[the point->x]`) or declare a local and hand it back, so those values come home as ordinary results. Text is the one case with no single-expression answer on the C side, because the bytes belong to C and have to be copied out.
 
-**`and free it with <name>` says how to release it**, and then Cufet does, on every way out of the
-block — its `Done.`, a `Stop`, a `return`, or an exception nobody catches:
+**`and free it with <name>` says how to release it**, and then Cufet does, on every way out of the block — its `Done.`, a `Stop`, a `return`, or an exception nobody catches:
 
 ```
 Pull a book on the c-language.
@@ -762,23 +618,13 @@ Pull a book on the c-language.
 Done.
 ```
 
-The releasing axiom takes one `address` and nothing else. A void result is never freed — C had
-nothing to give, so there is nothing to release.
+The releasing axiom takes one `address` and nothing else. A void result is never freed — C had nothing to give, so there is nothing to release.
 
-**Why it sits on the acquiring declaration.** `getenv` and `strdup` both hand back a `char*`, and
-one must be freed while freeing the other is a crash. Cufet never reads the foreign text, so it
-cannot tell them apart — you can, and this is where you say so, once.
+**Why it sits on the acquiring declaration.** `getenv` and `strdup` both hand back a `char*`, and one must be freed while freeing the other is a crash. Cufet never reads the foreign text, so it cannot tell them apart — you can, and this is where you say so, once.
 
-⚠ **Saying nothing frees nothing.** An axiom with no clause is never released, and that is the safe
-direction: a leak is recoverable and shows up in a leak checker, where a double free is corruption
-that surfaces somewhere else entirely. Nothing checks that the function you named is the *right*
-one either — `and free it with fclose` on a directory handle type-checks and then misbehaves. This
-is the residue of calling C at all, and it is where the guardrails stop.
+⚠ **Saying nothing frees nothing.** An axiom with no clause is never released, and that is the safe direction: a leak is recoverable and shows up in a leak checker, where a double free is corruption that surfaces somewhere else entirely. Nothing checks that the function you named is the *right* one either — `and free it with fclose` on a directory handle type-checks and then misbehaves. This is the residue of calling C at all, and it is where the guardrails stop.
 
-**A `size_t` needs no cast.** `strlen`, `sizeof`, `fread` and the rest of libc report a length as an
-unsigned 64-bit value, and that is a whole number like any other here — the boundary carries the
-value's signedness along with its bits, so a large one arrives as the number it is rather than as a
-negative one:
+**A `size_t` needs no cast.** `strlen`, `sizeof`, `fread` and the rest of libc report a length as an unsigned 64-bit value, and that is a whole number like any other here — the boundary carries the value's signedness along with its bits, so a large one arrives as the number it is rather than as a negative one:
 
 ```cufet
 Pull a book on the c-language.
@@ -790,9 +636,7 @@ Pull a book on the c-language.
 Done.
 ```
 
-**A `double` crosses as a `voidable number`, and it is the one lossy conversion.** A `number` is
-base-10 and a `double` is base-2, so 17 significant digits — what a `double` round-trips in — is
-what arrives:
+**A `double` crosses as a `voidable number`, and it is the one lossy conversion.** A `number` is base-10 and a `double` is base-2, so 17 significant digits — what a `double` round-trips in — is what arrives:
 
 ```cufet
 Pull a book on the c-language.
@@ -804,66 +648,37 @@ Pull a book on the c-language.
 Done.
 ```
 
-The conversion is written **once**, in C that both backends compile, and it hands back the parts a
-decimal is made of rather than the `double` itself — so nothing is converted twice and the last
-digit cannot differ between running a program and building it.
+The conversion is written **once**, in C that both backends compile, and it hands back the parts a decimal is made of rather than the `double` itself — so nothing is converted twice and the last digit cannot differ between running a program and building it.
 
-**Void is what "no such number" means here**, and it is the same answer `math` already gives:
-`math's square-root of (-4)` is void today, and so is `math's log of (0)`. A NaN, an infinity, and a
-magnitude outside a decimal's range all arrive as void — including a very small one like `1e-300`,
-which is void rather than `0`, because silently answering zero is the failure this refuses.
+**Void is what "no such number" means here**, and it is the same answer `math` already gives: `math's square-root of (-4)` is void today, and so is `math's log of (0)`. A NaN, an infinity, and a magnitude outside a decimal's range all arrive as void — including a very small one like `1e-300`, which is void rather than `0`, because silently answering zero is the failure this refuses.
 
 #### What an axiom can reach for
 
-**A fixed set of headers, already included.** The C standard library, plus the POSIX headers on
-Unix and the Win32 and winsock headers on Windows. You do not name headers, and there is no
-`#include` to write.
+**A fixed set of headers, already included.** The C standard library, plus the POSIX headers on Unix and the Win32 and winsock headers on Windows. You do not name headers, and there is no `#include` to write.
 
-The set is **platform-guarded**, because the interesting headers are not portable: `<termios.h>`,
-`<poll.h>`, `<sys/socket.h>` and `<sys/wait.h>` exist on Unix and not on Windows, while
-`<windows.h>` and `<winsock2.h>` are the other way round. Nothing is smoothed over — a program
-calling `tcgetattr` is a Unix program however it is written, and on Windows the C compiler says so
-before the program ever runs.
+The set is **platform-guarded**, because the interesting headers are not portable: `<termios.h>`, `<poll.h>`, `<sys/socket.h>` and `<sys/wait.h>` exist on Unix and not on Windows, while `<windows.h>` and `<winsock2.h>` are the other way round. Nothing is smoothed over — a program calling `tcgetattr` is a Unix program however it is written, and on Windows the C compiler says so before the program ever runs.
 
-**A library of your own is not reachable yet.** The reason is linking rather than headers: a
-header gives you declarations, and something still has to put `-lsqlite3` on the command line. Both
-halves have to arrive together, so neither has.
+**A library of your own is not reachable yet.** The reason is linking rather than headers: a header gives you declarations, and something still has to put `-lsqlite3` on the command line. Both halves have to arrive together, so neither has.
 
-⚠ **Foreign state is per-process, and the two backends are not the same process.** A compiled
-program is its own process; the interpreter calls into C inside the process running the
-interpreter. Anything C remembers globally — winsock initialisation, `errno`, a library's one-time
-setup, the current locale — can therefore differ between running a program and building it. Cufet
-values cross the boundary identically; what the C side remembers is the C side's business.
+⚠ **Foreign state is per-process, and the two backends are not the same process.** A compiled program is its own process; the interpreter calls into C inside the process running the interpreter. Anything C remembers globally — winsock initialisation, `errno`, a library's one-time setup, the current locale — can therefore differ between running a program and building it. Cufet values cross the boundary identically; what the C side remembers is the C side's business.
 
 #### What it costs
 
-**Running an axiom needs a C toolchain, on either backend.** Compiled, its text is pasted
-into the program's own C and called directly. Interpreted, it is compiled into a small shared
-library and called through it — cached by content, so `gcc` runs once per distinct axiom per
-machine rather than once per run.
+**Running an axiom needs a C toolchain, on either backend.** Compiled, its text is pasted into the program's own C and called directly. Interpreted, it is compiled into a small shared library and called through it — cached by content, so `gcc` runs once per distinct axiom per machine rather than once per run.
 
-Where there is no toolchain at all — the web playground runs the interpreter in wasm — a
-program containing an axiom refuses to run and says so.
+Where there is no toolchain at all — the web playground runs the interpreter in wasm — a program containing an axiom refuses to run and says so.
 
-**Every axiom is built before the program starts**, whichever way you run it. So a program with
-one axiom that will not compile prints **nothing at all** — it does not get partway through and
-then stop, and running it tells you exactly what building it would have. An axiom you declare and
-never return is not built by either backend, so it costs nothing and cannot fail.
+**Every axiom is built before the program starts**, whichever way you run it. So a program with one axiom that will not compile prints **nothing at all** — it does not get partway through and then stop, and running it tells you exactly what building it would have. An axiom you declare and never return is not built by either backend, so it costs nothing and cannot fail.
 
-**If gcc complains about your C, that is yours to fix.** Everything else in the generated C
-was written by cufet, and a failure there is reported as a compiler bug; an axiom is the one
-exception, and it is reported as one.
+**If gcc complains about your C, that is yours to fix.** Everything else in the generated C was written by cufet, and a failure there is reported as a compiler bug; an axiom is the one exception, and it is reported as one.
 
 ---
 
 ### Cufet source (`cufet`)
 
-**A `cufet` axiom is Cufet source held under a name.** The same surface as a foreign one, with a
-different mechanism behind it. `[ ... ]` still says *the text inside is not the program around it*,
-and that stays true here — the source is parsed, but nothing happens to it until you say so.
+**A `cufet` axiom is Cufet source held under a name.** The same surface as a foreign one, with a different mechanism behind it. `[ ... ]` still says *the text inside is not the program around it*, and that stays true here — the source is parsed, but nothing happens to it until you say so.
 
-**Which kind it is comes from the same rule the C tag follows: says what it gives back, and it is
-something you run; says nothing, and it is source.**
+**Which kind it is comes from the same rule the C tag follows: says what it gives back, and it is something you run; says nothing, and it is source.**
 
 ```cufet
 Pull a book on cufet.
@@ -881,10 +696,7 @@ Done.
 55
 ```
 
-A runnable one's body is a body, so a loop goes in it, and it is a value like any function — bind
-it to another name and run it there. It has no crossing restriction either: C is limited to a
-number, a fact and a voidable text because those are what survive the boundary, and nothing crosses
-one here.
+A runnable one's body is a body, so a loop goes in it, and it is a value like any function — bind it to another name and run it there. It has no crossing restriction either: C is limited to a number, a fact and a voidable text because those are what survive the boundary, and nothing crosses one here.
 
 ```cufet
 Pull a book on cufet.
@@ -906,49 +718,27 @@ Done.
 25
 ```
 
-The book is pulled like any other language book, and it is named `cufet` — no article, because
-`cufet` is a name where `the c-language` is a common noun.
+The book is pulled like any other language book, and it is named `cufet` — no article, because `cufet` is a name where `the c-language` is a common noun.
 
-**What a block holds are declarations** — an object, an interface, a `Define` and a `Bind`. The
-difference between them is the point of `Cite`: a type belongs to the program wherever it is
-written, so a cited object is program-scope; a value lands where you cited it. Cite one block in two
-places and you get two independent locals.
+**What a block holds are declarations** — an object, an interface, a `Define` and a `Bind`. The difference between them is the point of `Cite`: a type belongs to the program wherever it is written, so a cited object is program-scope; a value lands where you cited it. Cite one block in two places and you get two independent locals.
 
-A block may reach for what belongs to the program — a function, a type, a `permanently` constant, a
-pulled book — and for what it declares itself. Nothing else, so a block cannot quietly pick up a
-local from the place you happened to cite it.
+A block may reach for what belongs to the program — a function, a type, a `permanently` constant, a pulled book — and for what it declares itself. Nothing else, so a block cannot quietly pick up a local from the place you happened to cite it.
 
-A block that holds a **function** may only be cited where functions belong: at the top level, or
-directly inside a `Pull` block. Placed there it is an ordinary free function, which already cannot
-read the data around it; placed inside another body it would close over that body, which is the one
-thing a block must never do.
+A block that holds a **function** may only be cited where functions belong: at the top level, or directly inside a `Pull` block. Placed there it is an ordinary free function, which already cannot read the data around it; placed inside another body it would close over that body, which is the one thing a block must never do.
 
-**Declaring a block places nothing.** Cite it and its declarations are there; do not, and they are
-nowhere. The name holds source rather than a value, so it cannot be stated, passed or read.
+**Declaring a block places nothing.** Cite it and its declarations are there; do not, and they are nowhere. The name holds source rather than a value, so it cannot be stated, passed or read.
 
-Where a cited declaration lands is not a rule of its own. A type declaration belongs to the program
-wherever it is written, so a cited object is usable after the function that cited it — exactly as
-one written there by hand would be.
+Where a cited declaration lands is not a rule of its own. A type declaration belongs to the program wherever it is written, so a cited object is usable after the function that cited it — exactly as one written there by hand would be.
 
-**A block's `given` names holes, and `Cite <name> on (…)` fills them**, placing a copy as if written
-out there. A hole takes a name the block makes (`the term level`, filled with a name in quotes), a
-function or method it calls (`the number function next unto reader`, filled with the bare name), or
-a literal. Everything in a block is checked, so a mistake in one is reported at its own line, and a
-fill that does not fit at the `Cite`. GRAMMAR, *Holes in cufet source*, has the rules.
+**A block's `given` names holes, and `Cite <name> on (…)` fills them**, placing a copy as if written out there. A hole takes a name the block makes (`the term level`, filled with a name in quotes), a function or method it calls (`the number function next unto reader`, filled with the bare name), or a literal. Everything in a block is checked, so a mistake in one is reported at its own line, and a fill that does not fit at the `Cite`. GRAMMAR, *Holes in cufet source*, has the rules.
 
-One name holds one block; a second under the same name is refused. `and free it with` is refused, and it is the one thing the two tags differ on: a
-release clause hands memory back to the language that allocated it, and nothing was allocated across
-a boundary here. A message from inside a block reports the line it occupies in the file that
-holds it, not the line it would have on its own.
+One name holds one block; a second under the same name is refused. `and free it with` is refused, and it is the one thing the two tags differ on: a release clause hands memory back to the language that allocated it, and nothing was allocated across a boundary here. A message from inside a block reports the line it occupies in the file that holds it, not the line it would have on its own.
 
-Nothing about this reaches a backend. The blocks are placed and then removed while the program is
-still being checked, so what runs — interpreted or compiled — is a program of ordinary declarations,
-and neither backend has a word to say about a cufet axiom.
+Nothing about this reaches a backend. The blocks are placed and then removed while the program is still being checked, so what runs — interpreted or compiled — is a program of ordinary declarations, and neither backend has a word to say about a cufet axiom.
 
 ### Patterns (`regex`)
 
-**A pattern is written in brackets and read where it is written.** `Pull a book on regex.` admits
-them, the same way the other language books admit their own source:
+**A pattern is written in brackets and read where it is written.** `Pull a book on regex.` admits them, the same way the other language books admit their own source:
 
 ```cufet
 Pull a book on regex.
@@ -964,14 +754,9 @@ false
 
 A pattern takes one `text` and gives back a `fact` — whether the subject holds it.
 
-**It is checked before the program runs, and that is the whole reason for the brackets.** Because
-a pattern is fixed where it is written, a bad one is refused at its declaration rather than failing
-on the line that uses it. An ordinary function taking `text` could not promise that: its argument is
-not known until it has one.
+**It is checked before the program runs, and that is the whole reason for the brackets.** Because a pattern is fixed where it is written, a bad one is refused at its declaration rather than failing on the line that uses it. An ordinary function taking `text` could not promise that: its argument is not known until it has one.
 
-**A value is spliced into a pattern, never concatenated into it** — the same guarantee
-`run "grep" with arguments (…)` makes, and the reason a pattern cannot be assembled at run time.
-`Define regex p, given (…)` is refused for that reason: a pattern takes no parameters.
+**A value is spliced into a pattern, never concatenated into it** — the same guarantee `run "grep" with arguments (…)` makes, and the reason a pattern cannot be assembled at run time. `Define regex p, given (…)` is refused for that reason: a pattern takes no parameters.
 
 #### What a pattern can say
 
@@ -1014,9 +799,7 @@ false
 true
 ```
 
-**A pattern asks whether the subject HOLDS a match**, not whether the whole subject is one — so
-`[na]` finds the `na` inside `banana`. **Anchors are how you say "the whole thing"**, and they are
-what turns a pattern from a search into a check:
+**A pattern asks whether the subject HOLDS a match**, not whether the whole subject is one — so `[na]` finds the `na` inside `banana`. **Anchors are how you say "the whole thing"**, and they are what turns a pattern from a search into a check:
 
 ```cufet
 Pull a book on regex.
@@ -1033,14 +816,9 @@ false
 true
 ```
 
-`^` and `$` are ordinary states in the automaton rather than settings on the pattern, so they
-compose wherever anything else does — `(^cat|dog$)` anchors each side of the alternation
-separately, which a pair of flags on the whole pattern could not have expressed.
+`^` and `$` are ordinary states in the automaton rather than settings on the pattern, so they compose wherever anything else does — `(^cat|dog$)` anchors each side of the alternation separately, which a pair of flags on the whole pattern could not have expressed.
 
-**A negated class is not the mirror of a positive one, and the difference is worth knowing.**
-`[abc]` is shorthand for `(a|b|c)` — it says nothing the book could not already say. `[^abc]` says
-something genuinely new, because "every character except these" cannot be written out as a list.
-The two spellings are one character apart and only one of them is sugar.
+**A negated class is not the mirror of a positive one, and the difference is worth knowing.** `[abc]` is shorthand for `(a|b|c)` — it says nothing the book could not already say. `[^abc]` says something genuinely new, because "every character except these" cannot be written out as a list. The two spellings are one character apart and only one of them is sugar.
 
 ```cufet
 Pull a book on regex.
@@ -1057,14 +835,11 @@ false
 true
 ```
 
-Reading up to a delimiter is what it is for, and it composes with everything else for nothing —
-`[^,]` is an ordinary one-character state, so a `+` over it works exactly as `a+` does.
+Reading up to a delimiter is what it is for, and it composes with everything else for nothing — `[^,]` is an ordinary one-character state, so a `+` over it works exactly as `a+` does.
 
 #### Case, and whitespace
 
-**Matching is exact, and that includes case** — which is regex's own default, not a shortcoming.
-`[WARN]` does not match `warn`. **Ask for the other behaviour with `(?i)`**, which folds everything
-after it to the end of its group, or `(?i:…)` to fold just part:
+**Matching is exact, and that includes case** — which is regex's own default, not a shortcoming. `[WARN]` does not match `warn`. **Ask for the other behaviour with `(?i)`**, which folds everything after it to the end of its group, or `(?i:…)` to fold just part:
 
 ```cufet
 Pull a book on regex.
@@ -1084,14 +859,11 @@ true
 false
 ```
 
-The casing comes from the same table the rest of the language uses, so a pattern means the same
-thing on every machine — which is not automatic, because the platform's own casing is not.
+The casing comes from the same table the rest of the language uses, so a pattern means the same thing on every machine — which is not automatic, because the platform's own casing is not.
 
 #### Lines
 
-**`.` stops at a line break**, and `^` and `$` mean the whole subject rather than each line.
-Both are regex's defaults, and both are askable-for: `(?s)` lets `.` cross a break, `(?m)` makes the
-anchors line-wise.
+**`.` stops at a line break**, and `^` and `$` mean the whole subject rather than each line. Both are regex's defaults, and both are askable-for: `(?s)` lets `.` cross a break, `(?m)` makes the anchors line-wise.
 
 ```cufet
 Pull a book on regex.
@@ -1114,23 +886,13 @@ true
 false
 ```
 
-A line break is one `\n` here whatever a file is stored as — a CRLF source does not put a `\r`
-into a literal, and reading a file's lines strips it — so `(?m)` needs no second answer for
-Windows.
+A line break is one `\n` here whatever a file is stored as — a CRLF source does not put a `\r` into a literal, and reading a file's lines strips it — so `(?m)` needs no second answer for Windows.
 
-**Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed
-into a pattern is that character — a pattern may run across lines the same way a `<<...>>` literal
-does. `\t` and `\n` are refused for the reason every unknown escape is: `\d` will mean digits one
-day, and quietly meaning `d` until then is a change nobody sees. Nothing is missing here but a
-spelling, and the refusal says which character to type instead.
+**Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed into a pattern is that character — a pattern may run across lines the same way a `<<...>>` literal does. `\t` and `\n` are refused for the reason every unknown escape is: `\d` will mean digits one day, and quietly meaning `d` until then is a change nobody sees. Nothing is missing here but a spelling, and the refusal says which character to type instead.
 
 **What is refused, and refused by name:**
 
-**Nothing is refused as "not yet" any more, and that is the whole arc finishing.** Five things
-once were — `a*`, `[a-z]`, `^ab`, `ab$` and `a{2}` — each named in its refusal rather than quietly
-read as ordinary characters. Every one is now supported, and **not a single pattern written against
-those refusals changed meaning on the day it landed.** Reading `a*` as two characters would have
-silently reinterpreted somebody's working program; saying *not yet* could not.
+**Nothing is refused as "not yet" any more, and that is the whole arc finishing.** Five things once were — `a*`, `[a-z]`, `^ab`, `ab$` and `a{2}` — each named in its refusal rather than quietly read as ordinary characters. Every one is now supported, and **not a single pattern written against those refusals changed meaning on the day it landed.** Reading `a*` as two characters would have silently reinterpreted somebody's working program; saying *not yet* could not.
 
 What is refused now is of a different kind — **permanent, and about what an automaton can be**:
 
@@ -1142,15 +904,9 @@ Done.
 
 > `'\1' is not an escape this pattern understands`
 
-**Backreferences and lookaround are precisely the features that make a "regular expression" not
-regular.** They need a machine that can backtrack, and backtracking is what this book refused at
-the start — because it can hang forever on a pattern that looks fine, and because the usual defence
-is a timeout, which is nondeterministic where two backends must agree byte for byte. So the book
-does the regular parts of regex, completely, and says plainly which parts it does not do and why.
+**Backreferences and lookaround are precisely the features that make a "regular expression" not regular.** They need a machine that can backtrack, and backtracking is what this book refused at the start — because it can hang forever on a pattern that looks fine, and because the usual defence is a timeout, which is nondeterministic where two backends must agree byte for byte. So the book does the regular parts of regex, completely, and says plainly which parts it does not do and why.
 
-A `-` just before the `]` is an ordinary dash, not half a range. Both empty forms are refused,
-in opposite directions: `[]` admits nothing so the pattern could never match, and `[^]` excludes
-nothing and so means `.`, which says it more clearly.
+A `-` just before the `]` is an ordinary dash, not half a range. Both empty forms are refused, in opposite directions: `[]` admits nothing so the pattern could never match, and `[^]` excludes nothing and so means `.`, which says it more clearly.
 
 **A backslash makes a metacharacter ordinary**, and stands for itself doubled:
 
@@ -1167,50 +923,25 @@ true
 true
 ```
 
-An unknown escape is refused for the same reason a metacharacter is: `\d` will mean digits one
-day, and quietly meaning `d` until then is a change nobody would see. An **empty** pattern is
-refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty
-subject.
+An unknown escape is refused for the same reason a metacharacter is: `\d` will mean digits one day, and quietly meaning `d` until then is a change nobody would see. An **empty** pattern is refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty subject.
 
-See [`examples/parsing/semver.cufe`](../examples/parsing/semver.cufe) for the pattern surface
-under real load — it validates semantic versions, and every case it checks carries **the answer the
-spec gives**, not one this project chose. Two backends agreeing proves only that they agree; an
-answer key written by somebody else is what makes agreement mean correct. The awkward rule is the
-one a hand-written check always gets wrong — `01.1.1` is not a version, because a numeric
-identifier may not be padded — and as a pattern that is just `0|[1-9]\d*`.
+See [`examples/parsing/semver.cufe`](../examples/parsing/semver.cufe) for the pattern surface under real load — it validates semantic versions, and every case it checks carries **the answer the spec gives**, not one this project chose. Two backends agreeing proves only that they agree; an answer key written by somebody else is what makes agreement mean correct. The awkward rule is the one a hand-written check always gets wrong — `01.1.1` is not a version, because a numeric identifier may not be padded — and as a pattern that is just `0|[1-9]\d*`.
 
-See [`examples/parsing/logtriage.cufe`](../examples/parsing/logtriage.cufe) for a worked program —
-it triages a log by the shapes its lines hold, which is the case patterns are actually for: a log
-is never written for the thing that reads it, and half of what matters in one is a shape rather
-than a word.
+See [`examples/parsing/logtriage.cufe`](../examples/parsing/logtriage.cufe) for a worked program — it triages a log by the shapes its lines hold, which is the case patterns are actually for: a log is never written for the thing that reads it, and half of what matters in one is a shape rather than a word.
 
-It is also where the edges showed up in a real program rather than in a test — and it is why
-anchors exist. That program could *count and flag* but not *validate*, because a pattern asks
-whether a subject **holds** a match and there was no way to add "and that is all of it". The limit
-arrived as a refusal naming `^` rather than as a wrong answer, which is the whole argument for
-refusing by name; `^` and `$` landed in the release after it.
+It is also where the edges showed up in a real program rather than in a test — and it is why anchors exist. That program could *count and flag* but not *validate*, because a pattern asks whether a subject **holds** a match and there was no way to add "and that is all of it". The limit arrived as a refusal naming `^` rather than as a wrong answer, which is the whole argument for refusing by name; `^` and `$` landed in the release after it.
 
 #### It cannot hang
 
-**Patterns run on an automaton, never on backtracking.** `a*a*a*a*b` against a long run of a's
-with no `b` is the input that makes a backtracking engine try every way of dividing those a's
-between the four stars — exponential, and the reason "regular expression denial of service" is a
-phrase. Here the set of live states is carried forward one character at a time, so the cost is
-linear in the subject however the pattern is shaped.
+**Patterns run on an automaton, never on backtracking.** `a*a*a*a*b` against a long run of a's with no `b` is the input that makes a backtracking engine try every way of dividing those a's between the four stars — exponential, and the reason "regular expression denial of service" is a phrase. Here the set of live states is carried forward one character at a time, so the cost is linear in the subject however the pattern is shaped.
 
 The price is **backreferences**, which an automaton cannot express and this language does not have.
 
 #### Why this book is written the way it is
 
-**One meaning, not two.** A pattern is read by the front end and lowered to an ordinary function
-before either backend meets the program, so there is nothing for an interpreter and a compiler to
-disagree about. Reaching for a ready-made engine on each side — .NET's on one, POSIX's on the other
-— would have given two dialects that differ on greediness, character classes and empty matches, and
-differ silently, on inputs nobody thought to test.
+**One meaning, not two.** A pattern is read by the front end and lowered to an ordinary function before either backend meets the program, so there is nothing for an interpreter and a compiler to disagree about. Reaching for a ready-made engine on each side — .NET's on one, POSIX's on the other — would have given two dialects that differ on greediness, character classes and empty matches, and differ silently, on inputs nobody thought to test.
 
-Like `cufet` and unlike `the c-language`, this is a language book Cufet **reads itself**. Nothing
-is marshalled, no toolchain is reached for, and no boundary is crossed. The brackets mean *this text
-is not the program around it* in both cases; what differs is who reads what is inside.
+Like `cufet` and unlike `the c-language`, this is a language book Cufet **reads itself**. Nothing is marshalled, no toolchain is reached for, and no boundary is crossed. The brackets mean *this text is not the program around it* in both cases; what differs is who reads what is inside.
 
 ---
 
@@ -1218,21 +949,17 @@ is not the program around it* in both cases; what differs is who reads what is i
 
 ### Blueprints (`blueprints`)
 
-**The book introduces two shapes.** A `step` is one thing the build does; a `pin` is one
-book the project depends on, held at one commit:
+**The book introduces two shapes.** A `step` is one thing the build does; a `pin` is one book the project depends on, held at one commit:
 
 | shape | fields |
 | --- | --- |
 | `step` | `the name`, `the needs`, `the makes`, `the runs` |
 | `pin` | `the name`, `the source`, `the commit` |
 
-A pin records a COMMIT rather than a version: a version string would be a second name for
-the same thing, and a content checksum cannot survive a `git` checkout that rewrites line endings.
+A pin records a COMMIT rather than a version: a version string would be a second name for the same thing, and a content checksum cannot survive a `git` checkout that rewrites line endings.
 
 
-**A project is built by a Cufet program, not by a second language.** `cufet build` with no
-arguments reads `blueprint.cufe` and does what it describes. With a file it compiles that one
-file, as it always has — the verb is overloaded by arity.
+**A project is built by a Cufet program, not by a second language.** `cufet build` with no arguments reads `blueprint.cufe` and does what it describes. With a file it compiles that one file, as it always has — the verb is overloaded by arity.
 
 ```cufet-fragment
 Pull a book on blueprints.
@@ -1252,9 +979,7 @@ Pull a book on blueprints.
 Done.
 ```
 
-Steps that are known up front are returned as one series. When they are COMPUTED — one per file
-in a directory, say — `blueprint` is a function body like any other, so build the series with a
-loop and `Insert … into` instead.
+Steps that are known up front are returned as one series. When they are COMPUTED — one per file in a directory, say — `blueprint` is a function body like any other, so build the series with a loop and `Insert … into` instead.
 
 A step is four things:
 
@@ -1265,28 +990,15 @@ A step is four things:
 | `makes` | paths it produces, which is how another step comes to need it |
 | `runs` | argv, program first |
 
-**A need that is not there stops the build before the step runs.** Once every step that makes
-it has run, a missing need will never arrive, so `cufet build` names the step and the path and
-leaves with 1 — saying whether no step makes it, or which step should have and did not.
+**A need that is not there stops the build before the step runs.** Once every step that makes it has run, a missing need will never arrive, so `cufet build` names the step and the path and leaves with 1 — saying whether no step makes it, or which step should have and did not.
 
-**Every path in a step is relative to the project root** — the folder holding `blueprint.cufe`.
-`cufet build` reads the `blueprint.cufe` in the folder it is run from and does not search above
-it, so run it from there; `needs`, `makes`, and any file `runs` names are all measured from that
-folder.
+**Every path in a step is relative to the project root** — the folder holding `blueprint.cufe`. `cufet build` reads the `blueprint.cufe` in the folder it is run from and does not search above it, so run it from there; `needs`, `makes`, and any file `runs` names are all measured from that folder.
 
-**Running a blueprint performs nothing.** It defines `blueprint` and calls nothing, so what
-comes out is a plan; the build happens afterwards, to that plan. Run it with plain `cufet
-blueprint.cufe` and you get no output and no compilation, which is correct rather than a bug.
+**Running a blueprint performs nothing.** It defines `blueprint` and calls nothing, so what comes out is a plan; the build happens afterwards, to that plan. Run it with plain `cufet blueprint.cufe` and you get no output and no compilation, which is correct rather than a bug.
 
-**The graph is never written down.** `smoke` above runs after `shell` because it needs a path
-`shell` makes — and nothing says so. There are no edges to declare, and that is not brevity:
-staleness is decided by hashing what a step needs, so `needs` has to be declared regardless.
-Writing edges too would state one fact twice, and an edge could then claim a dependency the inputs
-deny with nothing to catch it.
+**The graph is never written down.** `smoke` above runs after `shell` because it needs a path `shell` makes — and nothing says so. There are no edges to declare, and that is not brevity: staleness is decided by hashing what a step needs, so `needs` has to be declared regardless. Writing edges too would state one fact twice, and an edge could then claim a dependency the inputs deny with nothing to catch it.
 
-**`step` is a NAME for that shape, not a new type.** The book introduces it the way
-`collections` introduces `matrix`, but a step stays an ordinary structural record: you build one
-with `a record with (…)`, and writing the shape out longhand means exactly the same thing —
+**`step` is a NAME for that shape, not a new type.** The book introduces it the way `collections` introduces `matrix`, but a step stays an ordinary structural record: you build one with `a record with (…)`, and writing the shape out longhand means exactly the same thing —
 
 ```cufet-fragment
 Pull a book on blueprints.
@@ -1301,17 +1013,11 @@ Pull a book on blueprints.
 Done.
 ```
 
-— is the same parameter as `the series of step items`. Neither backend learns anything; what it
-saves is spelling four fields out twice in every blueprint.
+— is the same parameter as `the series of step items`. Neither backend learns anything; what it saves is spelling four fields out twice in every blueprint.
 
-**The name is lexically scoped to the pull**, like `matrix`. Close the block and `step` stops
-being a type. Pulling the book is still mostly how a file declares what it *is*, which is what lets
-`cufet build` refuse a blueprint that does not.
+**The name is lexically scoped to the pull**, like `matrix`. Close the block and `step` stops being a type. Pulling the book is still mostly how a file declares what it *is*, which is what lets `cufet build` refuse a blueprint that does not.
 
-**A step nothing has changed is skipped.** `cufet build` keeps a record beside the blueprint in
-`.cufet-build` — one line per step, holding its argv and the checksum of every path it needs. The
-step runs when that line differs from what was recorded, or when anything it makes is no longer
-there.
+**A step nothing has changed is skipped.** `cufet build` keeps a record beside the blueprint in `.cufet-build` — one line per step, holding its argv and the checksum of every path it needs. The step runs when that line differs from what was recorded, or when anything it makes is no longer there.
 
 ```
 $ cufet build
@@ -1322,24 +1028,13 @@ $ cufet build
 $
 ```
 
-**A skipped step says nothing**, so the second build above is the whole output of a build with
-nothing to do. The emptiness is the report.
+**A skipped step says nothing**, so the second build above is the whole output of a build with nothing to do. The emptiness is the report.
 
-**The argv is part of what is compared**, not only the inputs. A step whose files are untouched
-but whose flags changed produces a different result, so comparing inputs alone would skip exactly
-the rebuild the change was made to cause.
+**The argv is part of what is compared**, not only the inputs. A step whose files are untouched but whose flags changed produces a different result, so comparing inputs alone would skip exactly the rebuild the change was made to cause.
 
-**Staleness travels the chain, and stops where the content stops.** `smoke` needs what `shell`
-makes, so changing `tools/shell.cufe` runs both. But if `shell` runs again and produces a
-byte-identical binary — because you edited a comment, or deleted the output and remade it — `smoke`
-does **not** run, since what it depends on never actually changed. A build keyed on *"did the step
-I depend on run"* rebuilds the world there; one keyed on content stops at the first thing that
-really moved.
+**Staleness travels the chain, and stops where the content stops.** `smoke` needs what `shell` makes, so changing `tools/shell.cufe` runs both. But if `shell` runs again and produces a byte-identical binary — because you edited a comment, or deleted the output and remade it — `smoke` does **not** run, since what it depends on never actually changed. A build keyed on *"did the step I depend on run"* rebuilds the world there; one keyed on content stops at the first thing that really moved.
 
-The record is written after every step that succeeds, so a build that fails halfway keeps what it
-did and the next one carries on rather than starting over. A step that fails records nothing and
-runs again. **There is no rebuild-everything flag** — deleting `.cufet-build` is how you ask for
-one, and a project under version control usually ignores it.
+The record is written after every step that succeeds, so a build that fails halfway keeps what it did and the next one carries on rather than starting over. A step that fails records nothing and runs again. **There is no rebuild-everything flag** — deleting `.cufet-build` is how you ask for one, and a project under version control usually ignores it.
 
 **Its one member is `checksum`**, which is what staleness is decided by:
 
@@ -1349,43 +1044,21 @@ Pull a book on blueprints.
 Done.
 ```
 
-`blueprints's checksum of (path)` is **FNV-1a, 64-bit, over the file's bytes**, and gives back
-`voidable bits` — void when the file cannot be read, because a build asks about inputs that do not
-exist yet constantly and "nothing there to checksum" is an answer rather than an error.
+`blueprints's checksum of (path)` is **FNV-1a, 64-bit, over the file's bytes**, and gives back `voidable bits` — void when the file cannot be read, because a build asks about inputs that do not exist yet constantly and "nothing there to checksum" is an answer rather than an error.
 
-**Content, never timestamps.** A timestamp answers *"was this touched"*; a build wants *"is this
-different"*. They differ at the edges — a file touched without changing, or a change inside the
-filesystem's timestamp resolution — and the failure is a wrong build with no complaint. Decisive:
-git does not preserve modification times, so a timestamp answer depends on how the tree arrived on
-the machine.
+**Content, never timestamps.** A timestamp answers *"was this touched"*; a build wants *"is this different"*. They differ at the edges — a file touched without changing, or a change inside the filesystem's timestamp resolution — and the failure is a wrong build with no complaint. Decisive: git does not preserve modification times, so a timestamp answer depends on how the tree arrived on the machine.
 
-⚠ **Non-cryptographic, and 64 bits.** It detects change; it does not resist an adversary. A
-collision is possible in principle — at a few thousand files, somewhere around one in ten trillion
-— and a collision is a stale build with no complaint, so it is stated here rather than pretended
-away.
+⚠ **Non-cryptographic, and 64 bits.** It detects change; it does not resist an adversary. A collision is possible in principle — at a few thousand files, somewhere around one in ten trillion — and a collision is a stale build with no complaint, so it is stated here rather than pretended away.
 
-⚠ **It is for blueprints, and nothing else.** `checksum` exists to decide staleness, and pulling
-this book is a file's declaration that it IS a build description — so reaching for it from an
-ordinary program is off-label rather than merely unusual. The practical consequence is concrete:
-pulling the book brings the step-walker with it, the walker runs subprocesses, and a compiled
-binary can only do that where `fork`/`exec` exist. A blueprint never meets this, because `cufet
-build` runs it interpreted. A program that pulls the book for its checksum alone will interpret
-fine and fail to compile on Windows — and that is the book being used for something it is not for,
-not a limitation of the checksum.
+⚠ **It is for blueprints, and nothing else.** `checksum` exists to decide staleness, and pulling this book is a file's declaration that it IS a build description — so reaching for it from an ordinary program is off-label rather than merely unusual. The practical consequence is concrete: pulling the book brings the step-walker with it, the walker runs subprocesses, and a compiled binary can only do that where `fork`/`exec` exist. A blueprint never meets this, because `cufet build` runs it interpreted. A program that pulls the book for its checksum alone will interpret fine and fail to compile on Windows — and that is the book being used for something it is not for, not a limitation of the checksum.
 
-**`cufet build blueprint.cufe` is refused by name.** Under the overload it would compile the
-build description itself into a binary, which is never what anyone means — and it would do it
-quietly, which is the failure this language declines everywhere else.
+**`cufet build blueprint.cufe` is refused by name.** Under the overload it would compile the build description itself into a binary, which is never what anyone means — and it would do it quietly, which is the failure this language declines everywhere else.
 
-**Steps that need each other are refused**, not hung on: *"these steps need each other and cannot
-be ordered."*
+**Steps that need each other are refused**, not hung on: *"these steps need each other and cannot be ordered."*
 
 ### Pinned books (`cufet install`)
 
-**A book is fetched by `git`, and by nothing else.** `cufet install` reads the pins in
-`blueprint.cufe`, clones each source once, and writes the file the pin names into `books/`, where a
-pull already looks. There is no registry and no network capability of Cufet's own — publishing a
-book is `git push`, and a source is whatever `git clone` accepts.
+**A book is fetched by `git`, and by nothing else.** `cufet install` reads the pins in `blueprint.cufe`, clones each source once, and writes the file the pin names into `books/`, where a pull already looks. There is no registry and no network capability of Cufet's own — publishing a book is `git push`, and a source is whatever `git clone` accepts.
 
 ```cufet-fragment
 Pull a book on blueprints.
@@ -1407,31 +1080,13 @@ A pin is three things:
 | `source` | anything `git clone` takes — a URL, or a path |
 | `commit` | the exact commit to read the book out of |
 
-**A pin names a COMMIT, and the transport is why.** A version string would be a second name for
-the same thing, and the two can disagree. A content checksum is the obvious alternative and it
-cannot survive the journey: `git` rewrites line endings on checkout where `core.autocrlf` is set,
-so the bytes that arrive are not always the bytes that were published. A commit sha is the one
-identifier `git` itself guarantees. The installer clones with `--no-checkout` and reads the file
-with `git show <commit>:<file>`, straight out of the object store, so there is no working tree for
-any setting to rewrite.
+**A pin names a COMMIT, and the transport is why.** A version string would be a second name for the same thing, and the two can disagree. A content checksum is the obvious alternative and it cannot survive the journey: `git` rewrites line endings on checkout where `core.autocrlf` is set, so the bytes that arrive are not always the bytes that were published. A commit sha is the one identifier `git` itself guarantees. The installer clones with `--no-checkout` and reads the file with `git show <commit>:<file>`, straight out of the object store, so there is no working tree for any setting to rewrite.
 
-**The clone is kept, as a cache**, at `books/.cufet-cache/<name>`; a second install re-reads it
-instead of fetching again. That location is measured rather than tidy: `Write` does not create
-parent directories and Cufet cannot make one, so `books/` has to be brought into being by
-something — and `git clone` creates its target including parents. Deleting `books/` therefore
-removes everything the installer made, which is the same escape hatch deleting `.cufet-build`
-offers the build.
+**The clone is kept, as a cache**, at `books/.cufet-cache/<name>`; a second install re-reads it instead of fetching again. That location is measured rather than tidy: `Write` does not create parent directories and Cufet cannot make one, so `books/` has to be brought into being by something — and `git clone` creates its target including parents. Deleting `books/` therefore removes everything the installer made, which is the same escape hatch deleting `.cufet-build` offers the build.
 
-**A book's own pins are followed.** If a fetched book carries a `blueprint.cufe`, the books IT pins
-are fetched too, and theirs after that. A project pins what it uses and nothing else; a library's
-dependencies stay the library's business.
+**A book's own pins are followed.** If a fetched book carries a `blueprint.cufe`, the books IT pins are fetched too, and theirs after that. A project pins what it uses and nothing else; a library's dependencies stay the library's business.
 
-⚠ **`cufet install` RUNS a fetched blueprint.** That is how its pins are read — the blueprint is
-executed and prints them — and it is the npm/pip postinstall hazard, chosen deliberately so that a
-blueprint may *compute* its pins rather than only spell them out. **Installing a book runs code
-from its repository.** The installer names each one before it runs — untagged below because no one
-sample program produces it, and an `output` block nothing can be paired against would claim a
-verification it does not have:
+⚠ **`cufet install` RUNS a fetched blueprint.** That is how its pins are read — the blueprint is executed and prints them — and it is the npm/pip postinstall hazard, chosen deliberately so that a blueprint may *compute* its pins rather than only spell them out. **Installing a book runs code from its repository.** The installer names each one before it runs — untagged below because no one sample program produces it, and an `output` block nothing can be paired against would claim a verification it does not have:
 
 ```
 cufet install: fetching canvas
@@ -1441,35 +1096,16 @@ cufet install: fetching deep
 cufet install: deep at 662ebab7a91d45760eae51ccb354fa987470bed3
 ```
 
-It is also an exception to the rule stated for `blueprint.cufe` elsewhere — that only its
-LOCATION is ever read and never its contents. That rule is about the **loader**, so that importing
-a book can never execute a build description, and it still holds there. The installer is the one
-tool that deliberately does otherwise.
+It is also an exception to the rule stated for `blueprint.cufe` elsewhere — that only its LOCATION is ever read and never its contents. That rule is about the **loader**, so that importing a book can never execute a build description, and it still holds there. The installer is the one tool that deliberately does otherwise.
 
-**One book per name, so a name pinned twice to different commits is refused**, naming both pins
-and who wrote each. A program holds one book per NAME — that is what makes the name the namespace —
-so exact pins force a *selection*, and there is nobody but you to make it. Two books wanting the
-same book at the same commit is agreement rather than conflict, and costs one fetch.
+**One book per name, so a name pinned twice to different commits is refused**, naming both pins and who wrote each. A program holds one book per NAME — that is what makes the name the namespace — so exact pins force a *selection*, and there is nobody but you to make it. Two books wanting the same book at the same commit is agreement rather than conflict, and costs one fetch.
 
-**Pins cannot form a cycle.** A commit cannot contain its own sha, so for A to pin B while B pins
-that same A, B would have to be committed knowing a sha that does not exist until B does. Exact
-pins are acyclic by construction, for the same reason a git history is.
+**Pins cannot form a cycle.** A commit cannot contain its own sha, so for A to pin B while B pins that same A, B would have to be committed knowing a sha that does not exist until B does. Exact pins are acyclic by construction, for the same reason a git history is.
 
-**What you installed is written down, in `.cufet-pins`.** One line per book — name, source and
-commit, tab-separated, sorted by name — covering the whole closure, including books you never named
-yourself. The next install reads it back, and a name that now resolves somewhere else is **refused,
-naming both**.
+**What you installed is written down, in `.cufet-pins`.** One line per book — name, source and commit, tab-separated, sorted by name — covering the whole closure, including books you never named yourself. The next install reads it back, and a name that now resolves somewhere else is **refused, naming both**.
 
-**That is not the usual lockfile argument, and it is sharper here.** Because a blueprint may
-COMPUTE its pins, the closure is not a function of the files at all: one blueprint, unchanged and at
-a single commit, can pin a different book depending on whether it runs inside a git repository. Nothing else anywhere records what a project actually got.
+**That is not the usual lockfile argument, and it is sharper here.** Because a blueprint may COMPUTE its pins, the closure is not a function of the files at all: one blueprint, unchanged and at a single commit, can pin a different book depending on whether it runs inside a git repository. Nothing else anywhere records what a project actually got.
 
-**It is the tool's file, not yours.** Writing the closure back into `blueprint.cufe` would be a
-tool editing the source you wrote; every ecosystem that keeps a lock splits the two for that reason.
-Deleting `.cufet-pins` is the escape hatch and there is no flag, exactly as with `.cufet-build`. A
-failed install writes nothing — a partial record is one the next install would compare against
-something that never happened.
+**It is the tool's file, not yours.** Writing the closure back into `blueprint.cufe` would be a tool editing the source you wrote; every ecosystem that keeps a lock splits the two for that reason. Deleting `.cufet-pins` is the escape hatch and there is no flag, exactly as with `.cufet-build`. A failed install writes nothing — a partial record is one the next install would compare against something that never happened.
 
-⚠ **A project must still pin what it uses directly.** Reaching a book because something else
-happened to pin it works, and it is not a dependency you declared — the next version of that
-library may drop it.
+⚠ **A project must still pin what it uses directly.** Reaching a book because something else happened to pin it works, and it is not a dependency you declared — the next version of that library may drop it.

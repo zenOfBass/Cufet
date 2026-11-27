@@ -2,18 +2,11 @@
 
 *From the Mvskoke (Muskogee) word for rabbit—the trickster who brings the gift of fire to humankind.*
 
-Cufet is a statically-typed, natural-language programming language. It borrows
-English's surface while keeping formal structure visible. Every keyword reads
-like prose; every control-flow boundary is explicit. No hidden scoping, no
-ambiguous syntax, no semicolons. It is Turing complete.
+Cufet is a statically-typed, natural-language programming language. It borrows English's surface while keeping formal structure visible. Every keyword reads like prose; every control-flow boundary is explicit. No hidden scoping, no ambiguous syntax, no semicolons. It is Turing complete.
 
-**[Try it in your browser](https://zenofbass.github.io/Cufet/)** — the interpreter, compiled to
-wasm. Nothing to install.
+**[Try it in your browser](https://zenofbass.github.io/Cufet/)** — the interpreter, compiled to wasm. Nothing to install.
 
-Cufet has two backends: a tree-walking **interpreter**, which is the reference
-implementation, and a **native compiler** that emits C and produces a real
-executable — threads, signals, subprocesses and all. The compiler is held to the
-interpreter as an oracle: compiled output must match interpreted output.
+Cufet has two backends: a tree-walking **interpreter**, which is the reference implementation, and a **native compiler** that emits C and produces a real executable — threads, signals, subprocesses and all. The compiler is held to the interpreter as an oracle: compiled output must match interpreted output.
 
 ```cufet
 For each counter in the range 1 to 100, repeat:
@@ -181,26 +174,17 @@ In case of failure:
 Done.
 ```
 
-For the language in depth — every statement, the type system, records, objects,
-functions, collections, bit patterns, error handling, I/O, regions, concurrency,
-pipes and modules — see **[REFERENCE.md](docs/REFERENCE.md)**.
-[GRAMMAR.md](docs/GRAMMAR.md) states the rules precisely and collects the sharp edges, and
-[BOOKS.md](docs/BOOKS.md) covers the books Cufet ships with — including `the c-language`, the
-one that admits C source.
+For the language in depth — every statement, the type system, records, objects, functions, collections, bit patterns, error handling, I/O, regions, concurrency, pipes and modules — see **[REFERENCE.md](docs/REFERENCE.md)**. [GRAMMAR.md](docs/GRAMMAR.md) states the rules precisely and collects the sharp edges, and [BOOKS.md](docs/BOOKS.md) covers the books Cufet ships with — including `the c-language`, the one that admits C source.
 
 ---
 
 ## Building and running
 
-Requires [.NET 10 SDK](https://dotnet.microsoft.com/download). Compiling to a
-native binary additionally requires **gcc** on `PATH` — the compiler emits C and
-invokes it.
+Requires [.NET 10 SDK](https://dotnet.microsoft.com/download). Compiling to a native binary additionally requires **gcc** on `PATH` — the compiler emits C and invokes it.
 
 ### Installing `cufet`
 
-Cufet ships as a .NET global tool, so `cufet` becomes a command on your `PATH`.
-The SDK already keeps its tools directory on `PATH` — no shell configuration and
-no administrator rights:
+Cufet ships as a .NET global tool, so `cufet` becomes a command on your `PATH`. The SDK already keeps its tools directory on `PATH` — no shell configuration and no administrator rights:
 
 ```
 dotnet pack src\App\Cufet.App.csproj -c Release
@@ -216,21 +200,14 @@ cufet check myprogram.cufe            # report errors without running it
 cufet --help
 ```
 
-Re-run `dotnet pack` and `dotnet tool update --global --add-source src\App\bin\Release Cufet`
-to pick up changes. Every command below also works as
-`dotnet run --project src\App\Cufet.App.csproj -- <args>` if you would rather not
-install anything.
+Re-run `dotnet pack` and `dotnet tool update --global --add-source src\App\bin\Release Cufet` to pick up changes. Every command below also works as `dotnet run --project src\App\Cufet.App.csproj -- <args>` if you would rather not install anything.
 
 ```
 # Run all tests
 dotnet test Cufet.sln
 ```
 
-`check` lexes, parses and type-checks, then reports the first problem as
-`myprogram.cufe:12: error: ...` and exits 1 — or says nothing and exits 0. Add
-`--native` to also flag constructs the native compiler refuses (reported as
-warnings, since they interpret fine), and `--json` for one JSON object per
-diagnostic, which is what the editor extension consumes.
+`check` lexes, parses and type-checks, then reports the first problem as `myprogram.cufe:12: error: ...` and exits 1 — or says nothing and exits 0. Add `--native` to also flag constructs the native compiler refuses (reported as warnings, since they interpret fine), and `--json` for one JSON object per diagnostic, which is what the editor extension consumes.
 
 ### Compiling to a native binary
 
@@ -242,14 +219,11 @@ cufet build myprogram.cufe
 cufet emit-c myprogram.cufe myprogram.c
 ```
 
-Programs using POSIX-only features — concurrency, subprocesses, signals — need a
-POSIX toolchain to build; the rest compile anywhere gcc runs.
+Programs using POSIX-only features — concurrency, subprocesses, signals — need a POSIX toolchain to build; the rest compile anywhere gcc runs.
 
 ### Editor support
 
-[`editors/vscode/`](editors/vscode/) is a Visual Studio Code extension giving
-syntax highlighting and error squiggles. It needs no build step — copy it into
-your extensions folder, then quit and restart VS Code:
+[`editors/vscode/`](editors/vscode/) is a Visual Studio Code extension giving syntax highlighting and error squiggles. It needs no build step — copy it into your extensions folder, then quit and restart VS Code:
 
 ```powershell
 Copy-Item "$PWD\editors\vscode" "$env:USERPROFILE\.vscode\extensions\cufet" -Recurse
@@ -259,14 +233,9 @@ Copy-Item "$PWD\editors\vscode" "$env:USERPROFILE\.vscode\extensions\cufet" -Rec
 cp -r "$PWD/editors/vscode" ~/.vscode/extensions/cufet
 ```
 
-Copy it — do not symlink. A linked directory is silently skipped by the
-extension scan, with nothing logged. Insiders uses a separate folder,
-`~/.vscode-insiders/extensions`, and fails the same silent way if you install
-into the wrong one.
+Copy it — do not symlink. A linked directory is silently skipped by the extension scan, with nothing logged. Insiders uses a separate folder, `~/.vscode-insiders/extensions`, and fails the same silent way if you install into the wrong one.
 
-The squiggles are the front end's own diagnostics, by way of `cufet check`
-— never a second opinion from a re-implementation that could drift out of step
-with it. See [its README](editors/vscode/README.md) for settings and details.
+The squiggles are the front end's own diagnostics, by way of `cufet check` — never a second opinion from a re-implementation that could drift out of step with it. See [its README](editors/vscode/README.md) for settings and details.
 
 ---
 
@@ -304,22 +273,10 @@ tools/                                — programs written IN Cufet, and the scr
 docs/                                 — REFERENCE, BOOKS, GRAMMAR, DESIGN, ROADMAP
 ```
 
-The lexer, parser, and type checker are **shared** by both backends, so a program
-that type-checks does so identically whether it is interpreted or compiled.
+The lexer, parser, and type checker are **shared** by both backends, so a program that type-checks does so identically whether it is interpreted or compiled.
 
-See [REFERENCE.md](docs/REFERENCE.md) for the complete language reference.
-See [BOOKS.md](docs/BOOKS.md) for the bundled books — `math`, `collections`, `chance`,
-and `the c-language`.
-See [GRAMMAR.md](docs/GRAMMAR.md) for the grammar and constraints reference — reserved
-keywords, object field scope rules, expression vs condition contexts, and sharp
-edges for writing Cufet correctly upfront.
-See [DESIGN.md](docs/DESIGN.md) for why the language is shaped the way it is.
-See [ROADMAP.md](docs/ROADMAP.md) for what comes next.
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.
+See [REFERENCE.md](docs/REFERENCE.md) for the complete language reference. See [BOOKS.md](docs/BOOKS.md) for the bundled books — `math`, `collections`, `chance`, and `the c-language`. See [GRAMMAR.md](docs/GRAMMAR.md) for the grammar and constraints reference — reserved keywords, object field scope rules, expression vs condition contexts, and sharp edges for writing Cufet correctly upfront. See [DESIGN.md](docs/DESIGN.md) for why the language is shaped the way it is. See [ROADMAP.md](docs/ROADMAP.md) for what comes next. See [CHANGELOG.md](CHANGELOG.md) for version history. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.
 
 ---
 
-*Toolchain built in C# / .NET 10; compiled programs are native binaries with no
-managed runtime. Named for the Mvskoke trickster—rabbit—who, like all good
-languages, promises to make something very powerful feel surprisingly natural.*
+*Toolchain built in C# / .NET 10; compiled programs are native binaries with no managed runtime. Named for the Mvskoke trickster—rabbit—who, like all good languages, promises to make something very powerful feel surprisingly natural.*

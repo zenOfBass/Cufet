@@ -1,58 +1,34 @@
 # Soundness of the region model
 
-*Written 2026-11-13 against the checker and compiler as they stood at 0.29.0, and updated the same
-day after the first repair.*
+*Written 2026-11-13 against the checker and compiler as they stood at 0.29.0, and updated the same day after the first repair.*
 
-This document answers one question: **can a program that passes `cufet check` read memory after
-the `Done.` that freed it?**
+This document answers one question: **can a program that passes `cufet check` read memory after the `Done.` that freed it?**
 
-**Where it stands.** Nineteen small programs were found that passed `cufet check` at 0.29.0, ran
-correctly interpreted, and read freed memory when compiled. They came from four places where the
-rules assumed something that is not true (section 4), and three more turned up while those were
-being closed (`holds-1`, `holds-2`, `text-1`). All four have been closed, and none of the
-twenty-two reads freed memory now on either compiler: thirteen are refused by `check`, and nine
-run right on both backends. What the closing is checked by, and what it is not proved for, is in
-sections 7 to 9.
+**Where it stands.** Nineteen small programs were found that passed `cufet check` at 0.29.0, ran correctly interpreted, and read freed memory when compiled. They came from four places where the rules assumed something that is not true (section 4), and three more turned up while those were being closed (`holds-1`, `holds-2`, `text-1`). All four have been closed, and none of the twenty-two reads freed memory now on either compiler: thirteen are refused by `check`, and nine run right on both backends. What the closing is checked by, and what it is not proved for, is in sections 7 to 9.
 
-A twenty-third, `result-5`, was found on 2026-11-19 by the model's programs run against the real
-tools, and is refused now. A function made its parameter's name a new series and returned it, and
-the result was judged as long-lived as the argument. Twenty-five of the twenty-six programs that
-search turned up had this shape. The last kept an item of a rabbit's series in a name outside it,
-which the compiler copies out, and ran right; the model does not know that copy.
+A twenty-third, `result-5`, was found on 2026-11-19 by the model's programs run against the real tools, and is refused now. A function made its parameter's name a new series and returned it, and the result was judged as long-lived as the argument. Twenty-five of the twenty-six programs that search turned up had this shape. The last kept an item of a rabbit's series in a name outside it, which the compiler copies out, and ran right; the model does not know that copy.
 
-Constants, chases and sets came after that, on 2026-11-24 and 25, out of none of the four: no rule had
-mentioned them, and the model and the random programs have none. They are at the end of section 4.
+Constants, chases and sets came after that, on 2026-11-24 and 25, out of none of the four: no rule had mentioned them, and the model and the random programs have none. They are at the end of section 4.
 
-O2 and O4 as built did not hold at a call, in seven places. Found on 2026-11-25 by the random programs,
-once they wrote more of the language, and then by hand, and closed the same day. They are at the end of
-section 4, under *At a call*.
+O2 and O4 as built did not hold at a call, in seven places. Found on 2026-11-25 by the random programs, once they wrote more of the language, and then by hand, and closed the same day. They are at the end of section 4, under *At a call*.
 
 The rest of the document is in three parts.
 
-1. **What is wrong.** Section 4 sets out the four obligations, with the programs that break each
-   and what each does now. The programs are in [soundness/probes/](soundness/probes/).
-2. **A repaired set of rules is sound, for a core of the language.** Section 5 gives the rules,
-   section 6 proves that a program they accept never reaches freed memory.
-3. **The proof was checked by machine as far as a search can check it.** A small executable model
-   of the compiled runtime and of both sets of rules is in [soundness/model/](soundness/model/).
-   Section 7 gives what it found, and section 9 what has been built from it and what is left.
+1. **What is wrong.** Section 4 sets out the four obligations, with the programs that break each and what each does now. The programs are in [soundness/probes/](soundness/probes/).
+2. **A repaired set of rules is sound, for a core of the language.** Section 5 gives the rules, section 6 proves that a program they accept never reaches freed memory.
+3. **The proof was checked by machine as far as a search can check it.** A small executable model of the compiled runtime and of both sets of rules is in [soundness/model/](soundness/model/). Section 7 gives what it found, and section 9 what has been built from it and what is left.
 
 ---
 
 ## 1. The claim
 
-DESIGN.md states the invariant as *a value may escape to a longer-lived region but never inward
-to a shorter-lived one*. The interpreter does not need it: its values are garbage collected. The
-compiled program does, so the property worth proving is about the compiled program:
+DESIGN.md states the invariant as *a value may escape to a longer-lived region but never inward to a shorter-lived one*. The interpreter does not need it: its values are garbage collected. The compiled program does, so the property worth proving is about the compiled program:
 
-> **Safety.** A program the checker accepts never reads or writes an object after the arena
-> holding it has been freed.
+> **Safety.** A program the checker accepts never reads or writes an object after the arena holding it has been freed.
 
 ## 2. What the compiled runtime does
 
-The proof stands on five facts about the generated C. Each was read from the code generator, not
-assumed. They are given as they were at 0.29.0, because that is the runtime sections 4 to 7 are
-about. F4 has changed since, and the change is described under it.
+The proof stands on five facts about the generated C. Each was read from the code generator, not assumed. They are given as they were at 0.29.0, because that is the runtime sections 4 to 7 are about. F4 has changed since, and the change is described under it.
 
 | | Fact | Where |
 |---|---|---|
@@ -62,16 +38,9 @@ about. F4 has changed since, and the change is described under it.
 | F4 | A series is a pointer to a header, and the header points at a buffer. Binding or passing a series copies the pointer, so two names share one series. Growing a series allocates a **new buffer in whatever arena the allocator currently points at**. | `cser_N_new`, `cser_N_ensure` |
 | F5 | The allocator points at the top arena, unless a store has set an override to a chosen depth for its own duration. | `cufet_alloc_override`, `EmitStoreWithEscape` |
 
-F2 and F4 are the two that matter most. F2 means a depth written down inside a function is
-relative to wherever the function happened to be called. F4 meant a series that was made outside
-a rabbit could have its buffer moved into the rabbit by a single `Insert`.
+F2 and F4 are the two that matter most. F2 means a depth written down inside a function is relative to wherever the function happened to be called. F4 meant a series that was made outside a rabbit could have its buffer moved into the rabbit by a single `Insert`.
 
-**F4 now.** A series header, a map header (a set is stored as one) and a chase header record the arena it was made in, and growing it
-allocates the new buffer in that arena whatever rabbit is open (`cufet_arena_here`,
-`cufet_arena_alloc_in`). An arena is its own heap block, so it can be named; and an arena that a
-`Return` merges into the one below (F3) stays behind as a stub that forwards to where its blocks
-went, so a series carried out of a rabbit still finds the right place. Section 9 has the reason
-it has to be the arena and not its depth.
+**F4 now.** A series header, a map header (a set is stored as one) and a chase header record the arena it was made in, and growing it allocates the new buffer in that arena whatever rabbit is open (`cufet_arena_here`, `cufet_arena_alloc_in`). An arena is its own heap block, so it can be named; and an arena that a `Return` merges into the one below (F3) stays behind as a stub that forwards to where its blocks went, so a series carried out of a rabbit still finds the right place. Section 9 has the reason it has to be the arena and not its depth.
 
 ## 3. The core language
 
@@ -89,41 +58,23 @@ statement  Define x as value.          x becomes value.
 function   Bind T to f, given (...): ... Done.     first-order, sees no outer names
 ```
 
-Kept: sharing of a series between names, series inside series, rabbits to any depth, functions
-that are handed series and may store into them, functions that return series, a `Return` from
-inside a rabbit, and a branch whose arms leave a name pointing at different things.
+Kept: sharing of a series between names, series inside series, rabbits to any depth, functions that are handed series and may store into them, functions that return series, a `Return` from inside a rabbit, and a branch whose arms leave a name pointing at different things.
 
-Left out, and so **not covered by the theorem**: text, records and objects, maps, function values
-and what they capture, tasks and channels, failures and exceptions, loops, recursion. Section 8
-says what each would need.
+Left out, and so **not covered by the theorem**: text, records and objects, maps, function values and what they capture, tasks and channels, failures and exceptions, loops, recursion. Section 8 says what each would need.
 
 ## 4. The checker's rules, and the four obligations they do not meet
 
-The checker gives every name one number, the rabbit depth of its `Define`, and a parameter the
-number 0. A store is refused when the value's number is greater than the target's
-(`CheckRegionStore`). Only a series, map, object, matrix, channel or address can be refused; text,
-and anything wrapped in a record, never is. When a value is not refused but is deeper than its
-target, the compiler is told to copy it into the target's arena and to point the allocator there
-for the store (`EscapeDepthFor`).
+The checker gives every name one number, the rabbit depth of its `Define`, and a parameter the number 0. A store is refused when the value's number is greater than the target's (`CheckRegionStore`). Only a series, map, object, matrix, channel or address can be refused; text, and anything wrapped in a record, never is. When a value is not refused but is deeper than its target, the compiler is told to copy it into the target's arena and to point the allocator there for the store (`EscapeDepthFor`).
 
-One number is asked to do two different jobs. When a name is **read**, the number has to be an
-upper bound: the object is no deeper than this. When a name is **stored into**, the number has to
-be exact: the object lives in precisely this arena, because that is where its new contents and its
-new buffer must go. A number that is right as an upper bound is not right as a location, and most
-of what follows is that one confusion.
+One number is asked to do two different jobs. When a name is **read**, the number has to be an upper bound: the object is no deeper than this. When a name is **stored into**, the number has to be exact: the object lives in precisely this arena, because that is where its new contents and its new buffer must go. A number that is right as an upper bound is not right as a location, and most of what follows is that one confusion.
 
-Any set of rules that is going to be sound has to meet four obligations. At 0.29.0 none was met
-completely. All four are met now.
+Any set of rules that is going to be sound has to meet four obligations. At 0.29.0 none was met completely. All four are met now.
 
 ### O1. What is read must not be deeper than the checker thinks
 
-*Met, in both checkers. What a call hands back is as deep as the call, unless all of it comes from
-the function's parameters; `it` in a `Judge` is as deep as its subject. What follows is how it
-was.*
+*Met, in both checkers. What a call hands back is as deep as the call, unless all of it comes from the function's parameters; `it` in a `Judge` is as deep as its subject. What follows is how it was.*
 
-*Broken by a call's result.* A function that makes a series and returns it is taken to return it
-at depth 0. By F2 it was allocated wherever the call happened, which inside a rabbit is the
-rabbit.
+*Broken by a call's result.* A function that makes a series and returns it is taken to return it at depth 0. By F2 it was allocated wherever the call happened, which inside a rabbit is the rabbit.
 
 ```text
 Bind series of number to make-it:
@@ -135,40 +86,23 @@ Pull a rabbit.
 Done.
 ```
 
-The return-depth signature (DESIGN.md, hole #1) repairs the case where a function returns its
-*parameter*. It does not help here, because nothing flows from a parameter, and it has gaps of its
-own: the walk that computes it does not enter a `Judge`, does not see a parameter that was
-`Insert`ed into the series being returned, and treats an object literal as fresh whatever is put
-in it. *Also broken by a binder:* the `it` of a `Judge` arm is registered with no depth and so
-reads as 0.
+The return-depth signature (DESIGN.md, hole #1) repairs the case where a function returns its *parameter*. It does not help here, because nothing flows from a parameter, and it has gaps of its own: the walk that computes it does not enter a `Judge`, does not see a parameter that was `Insert`ed into the series being returned, and treats an object literal as fresh whatever is put in it. *Also broken by a binder:* the `it` of a `Judge` arm is registered with no depth and so reads as 0.
 
 ### O2. A store needs to know exactly where its target lives
 
-*Met, in both checkers, for a series, a map, or an object holding one: a store is judged against
-how long-lived its target really is, not against where the target's name was defined (section 9).
-Not needed for growing a series or storing a number in it: a series finds its own arena. What
-follows is how it was.*
+*Met, in both checkers, for a series, a map, or an object holding one: a store is judged against how long-lived its target really is, not against where the target's name was defined (section 9). Not needed for growing a series or storing a number in it: a series finds its own arena. What follows is how it was.*
 
-*Broken by a second name.* `Define alias as keeper.` inside a rabbit gives `alias` the rabbit's
-depth, though the series it names lives outside. A store through `alias` is then checked against
-the wrong depth, and passes.
+*Broken by a second name.* `Define alias as keeper.` inside a rabbit gives `alias` the rabbit's depth, though the series it names lives outside. A store through `alias` is then checked against the wrong depth, and passes.
 
-*Broken by a target that is not a plain name.* `Insert x into b's items` takes the target to live
-at the current depth (`ContainerDepthOf`), which is the one depth that can never refuse anything.
+*Broken by a target that is not a plain name.* `Insert x into b's items` takes the target to live at the current depth (`ContainerDepthOf`), which is the one depth that can never refuse anything.
 
-*Broken by an element.* A row of a table can have been made further out than the table. The
-`For each` name is given the table's depth and `item 1 of table` the current depth, and growing
-the row then moved its buffer to an arena that ends before the row does. That one is fixed, since
-a row grows where the row lives. Storing a *series* into such a row is still checked against the
-wrong depth.
+*Broken by an element.* A row of a table can have been made further out than the table. The `For each` name is given the table's depth and `item 1 of table` the current depth, and growing the row then moved its buffer to an arena that ends before the row does. That one is fixed, since a row grows where the row lives. Storing a *series* into such a row is still checked against the wrong depth.
 
 ### O3. A series must grow in its own region
 
 *Met, in the runtime (F4 now).*
 
-At 0.29.0 a growing series got a new buffer wherever the allocator pointed, and the allocator was
-only redirected when the checker thought the *value* was deeper than the target. So an outer
-series, given an outer value, inside a rabbit, grew into the rabbit:
+At 0.29.0 a growing series got a new buffer wherever the allocator pointed, and the allocator was only redirected when the checker thought the *value* was deeper than the target. So an outer series, given an outer value, inside a rabbit, grew into the rabbit:
 
 ```text
 Define word as "in" joined to "ner".
@@ -178,20 +112,13 @@ Pull a rabbit.
 Done.
 ```
 
-Nothing here uses a function or a second name. The model found this one; it was not among the
-programs written by hand.
+Nothing here uses a function or a second name. The model found this one; it was not among the programs written by hand.
 
 ### O4. What a function stores into its parameters is its caller's business
 
-*Met, in both checkers and both compilers. A series, a map, or an object holding one: what a
-function stores into what it is given is recorded as its body is checked and judged at each cast.
-A text: copied, when the program runs, into the region the target lives in (section 9). What
-follows is how it was.*
+*Met, in both checkers and both compilers. A series, a map, or an object holding one: what a function stores into what it is given is recorded as its body is checked and judged at each cast. A text: copied, when the program runs, into the region the target lives in (section 9). What follows is how it was.*
 
-Inside a function every parameter has depth 0 and so does every series the function makes. By F2
-the second is really the caller's current arena and the first can be anything outside it. A
-function that stores what it made into what it was given checks clean on its own and is unsafe
-from any call site that sits inside a rabbit and passes something from outside.
+Inside a function every parameter has depth 0 and so does every series the function makes. By F2 the second is really the caller's current arena and the first can be anything outside it. A function that stores what it made into what it was given checks clean on its own and is unsafe from any call site that sits inside a rabbit and passes something from outside.
 
 ```text
 Bind void to push-into, given (the series of series of number bag):
@@ -204,15 +131,11 @@ Pull a rabbit.
 Done.
 ```
 
-Hole #2 in DESIGN.md is this obligation for one shape, a nested function storing a *captured*
-parameter. A function storing its *own* parameter is the general case.
+Hole #2 in DESIGN.md is this obligation for one shape, a nested function storing a *captured* parameter. A function storing its *own* parameter is the general case.
 
 ### The programs
 
-Every row passes `cufet check` and gives the right answer interpreted. The third column is the
-compiled program at 0.29.0 on Windows, over three runs of the whole set. Three of them were also
-built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and each reported
-`heap-use-after-free`, freed by `cufet_arena_pop`. The last column is the compiled program now.
+Every row passes `cufet check` and gives the right answer interpreted. The third column is the compiled program at 0.29.0 on Windows, over three runs of the whole set. Three of them were also built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and each reported `heap-use-after-free`, freed by `cufet_arena_pop`. The last column is the compiled program now.
 
 | Probe | Breaks | At 0.29.0 | Now |
 |---|---|---|---|
@@ -249,94 +172,41 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `constant-3-read-before-its-line` | constants | (found later) crashes | **stops first, as interpreted** |
 | `control-nothing-escapes` | nothing | same on both | same on both |
 
-**Constants** are in none of the four. A `permanently` constant is read by every function, and the model
-has none, so nothing here asked whether its rabbit was still open, or whether its line had run. Found
-on 2026-11-24 while testing GRAMMAR's claim that a rabbit's constant is shared. A constant a rabbit
-defines is now made in the program's arena (`PlaceOfConstant` in C#, `place-of-constant` in Cufet), so
-its depth is 0 to every rule here; one that is something the rabbit holds is the block's own, and no
-function reads it. The interpreter never had the hole: it stopped with `'sizes' isn't defined`, and now
-answers as the compiled program does. A read that could come before the constant's line asks a flag first.
+**Constants** are in none of the four. A `permanently` constant is read by every function, and the model has none, so nothing here asked whether its rabbit was still open, or whether its line had run. Found on 2026-11-24 while testing GRAMMAR's claim that a rabbit's constant is shared. A constant a rabbit defines is now made in the program's arena (`PlaceOfConstant` in C#, `place-of-constant` in Cufet), so its depth is 0 to every rule here; one that is something the rabbit holds is the block's own, and no function reads it. The interpreter never had the hole: it stopped with `'sizes' isn't defined`, and now answers as the compiled program does. A read that could come before the constant's line asks a flag first.
 
-**Chases and sets** were in no rule at all: the checker's list of what a region holds named neither, so
-a store of one was never asked about, and a chase's header named no arena to grow in. Found on
-2026-11-25, while deciding what a constant of each type should do. They are in every rule a series is
-in now, in both checkers. Checked under AddressSanitizer on Linux: 180 programs written for this and
-for the constants, 124 of them accepted and built, and no read of freed memory; the same programs on
-0.30.0 had 38.
+**Chases and sets** were in no rule at all: the checker's list of what a region holds named neither, so a store of one was never asked about, and a chase's header named no arena to grow in. Found on 2026-11-25, while deciding what a constant of each type should do. They are in every rule a series is in now, in both checkers. Checked under AddressSanitizer on Linux: 180 programs written for this and for the constants, 124 of them accepted and built, and no read of freed memory; the same programs on 0.30.0 had 38.
 
-"Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
-chance, since both are a read of freed memory.
+"Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is chance, since both are a read of freed memory.
 
-The five refused under O1 are fixtures too, as `escape-*.cufe`, with a sixth that returns its
-parameter only from inside an `If` arm. The four refused under O4 are among ten `escape-*.cufe`
-fixtures for that rule, beside six `*-legal.cufe` ones for the same functions cast where it is
-safe.
+The five refused under O1 are fixtures too, as `escape-*.cufe`, with a sixth that returns its parameter only from inside an `If` arm. The four refused under O4 are among ten `escape-*.cufe` fixtures for that rule, beside six `*-legal.cufe` ones for the same functions cast where it is safe.
 
-**At a call** (2026-11-25). O2 and O4 held for a store written out in a body, and not for one reached
-through a cast: 111 of 283 small programs the checker accepted read freed memory when compiled, and a
-second search found 25 more. They came from seven places:
+**At a call** (2026-11-25). O2 and O4 held for a store written out in a body, and not for one reached through a cast: 111 of 283 small programs the checker accepted read freed memory when compiled, and a second search found 25 more. They came from seven places:
 
-1. a value with no name (`xs sorted`, an item, a `when`, a `but void is`) handed to a function that
-   keeps it or hands it back, which was taken to live as long as the program;
-2. a second name for an outer container handed to a function that stores into it, judged by where the
-   name was defined;
-3. an outer container reached through a record, a voidable, a union or a judgement's `it`, or through a
-   series a function body wraps its parameter in;
-4. text, or anything else that is copied, stored through a second name or an item: it was copied to
-   where the name was made, and the container was further out;
+1. a value with no name (`xs sorted`, an item, a `when`, a `but void is`) handed to a function that keeps it or hands it back, which was taken to live as long as the program;
+2. a second name for an outer container handed to a function that stores into it, judged by where the name was defined;
+3. an outer container reached through a record, a voidable, a union or a judgement's `it`, or through a series a function body wraps its parameter in;
+4. text, or anything else that is copied, stored through a second name or an item: it was copied to where the name was made, and the container was further out;
 5. a function with no name storing into a second name it captured;
-6. a function value kept through a second name or a call: one that captured something lives where that
-   lives;
+6. a function value kept through a second name or a call: one that captured something lives where that lives;
 7. a `permanently` series that a function stores into, or hands back for its caller to store into.
 
-All seven are closed, in both checkers alike. What a function hands back is a name of its own now
-(`cast#n`), bounded by what the function can reach of what it was given; a value with no name is as
-deep as what it was made from; a record, a voidable and a union lead to what they hold; a copied store
-whose target may be further out than its name is copied to the target's own region (C#'s `HomeEscape`,
-the mark section 9 describes); a captured name is judged by where it may really be; a function value
-is judged as a container is, as deep as what it captured, or nowhere when it captured nothing; and a
-constant is a place of its own in a function's summary. The names these numbers are kept under are each
-binding's own now, not `name@line`: a line is one file's, and a name in a pulled book on the same line
-as a program's shared its numbers.
+All seven are closed, in both checkers alike. What a function hands back is a name of its own now (`cast#n`), bounded by what the function can reach of what it was given; a value with no name is as deep as what it was made from; a record, a voidable and a union lead to what they hold; a copied store whose target may be further out than its name is copied to the target's own region (C#'s `HomeEscape`, the mark section 9 describes); a captured name is judged by where it may really be; a function value is judged as a container is, as deep as what it captured, or nowhere when it captured nothing; and a constant is a place of its own in a function's summary. The names these numbers are kept under are each binding's own now, not `name@line`: a line is one file's, and a name in a pulled book on the same line as a program's shared its numbers.
 
-Checked under AddressSanitizer on Linux: 514 programs written for this, 0 reading freed memory, and
-the checker written in Cufet gives the same answer as C#'s to all 514. Nothing in the repository is newly refused
-but one line of the checker written in Cufet, which copied a tree and handed each leaf back as it was,
-so the copy shared the leaf's `children` with the original; the line is gone. What it costs, measured
-on those programs: a function that stores what it is given into a name it captured lowers that name's
-floor to where a parameter could be, so storing through the name later is refused inside a region; and
-in a program where a getter, an operator, a function with no name or one read as a value hands back a
-constant, a value nothing traces may be a constant.
+Checked under AddressSanitizer on Linux: 514 programs written for this, 0 reading freed memory, and the checker written in Cufet gives the same answer as C#'s to all 514. Nothing in the repository is newly refused but one line of the checker written in Cufet, which copied a tree and handed each leaf back as it was, so the copy shared the leaf's `children` with the original; the line is gone. What it costs, measured on those programs: a function that stores what it is given into a name it captured lowers that name's floor to where a parameter could be, so storing through the name later is refused inside a region; and in a program where a getter, an operator, a function with no name or one read as a value hands back a constant, a value nothing traces may be a constant.
 
-The six that are right were only ever growing something, and the three under O2 and O4 among them
-show that the growth was all that was wrong with them. They are fixtures now, in
-`tests/fixtures/soundness/` as `*-legal.cufe`. Three of them were run under AddressSanitizer
-(`grow-2`, `element-1`, `param-1`), with a fourth program that returns series out of nested
-rabbits and grows them afterwards, and all four are clean.
+The six that are right were only ever growing something, and the three under O2 and O4 among them show that the growth was all that was wrong with them. They are fixtures now, in `tests/fixtures/soundness/` as `*-legal.cufe`. Three of them were run under AddressSanitizer (`grow-2`, `element-1`, `param-1`), with a fourth program that returns series out of nested rabbits and grows them afterwards, and all four are clean.
 
-**A foreign address** (2026-11-25). An address is one of the types O2 refuses to store outward, but
-an axiom gives back a `voidable address`, and the store rule's type test did not look inside the
-voidable. So an address got in an inner rabbit could be stored into a series or a name made in an
-outer one, and with `and free it with` it was freed at the inner `Done.` and read afterwards: measured
-in the interpreter, which printed garbage. Found by hand, while testing GRAMMAR's claims. The test
-looks through the voidable now, and an address nothing else places is taken to live in the rabbit
-open where it was got. Both checkers; fixtures `escape-address-*`, and the checker-parity list holds the shapes that stay legal.
+**A foreign address** (2026-11-25). An address is one of the types O2 refuses to store outward, but an axiom gives back a `voidable address`, and the store rule's type test did not look inside the voidable. So an address got in an inner rabbit could be stored into a series or a name made in an outer one, and with `and free it with` it was freed at the inner `Done.` and read afterwards: measured in the interpreter, which printed garbage. Found by hand, while testing GRAMMAR's claims. The test looks through the voidable now, and an address nothing else places is taken to live in the rabbit open where it was got. Both checkers; fixtures `escape-address-*`, and the checker-parity list holds the shapes that stay legal.
 
 ## 5. Repaired rules
 
-These are rules for the core language of section 3, written for the runtime of 0.29.0. They need
-**no change to that runtime**: they use the allocation override that already exists (F5), and
-nothing else. On the runtime as it is now they ask for more than is needed, and section 9 says
-which parts fall away.
+These are rules for the core language of section 3, written for the runtime of 0.29.0. They need **no change to that runtime**: they use the allocation override that already exists (F5), and nothing else. On the runtime as it is now they ask for more than is needed, and section 9 says which parts fall away.
 
 ### What the checker knows about a name
 
-Write `b` for the arena that was on top when the current function was called, and `d` for the
-number of rabbits open inside the function at the point being checked. The top arena is then
-`b + d`. Call the arena an object's header sits in its **level**.
+Write `b` for the arena that was on top when the current function was called, and `d` for the number of rabbits open inside the function at the point being checked. The top arena is then `b + d`. Call the arena an object's header sits in its **level**.
 
-Every series-typed name has a **slot**, the value of `d` at its `Define` (0 for a parameter), and
-a **region**, which is one of four claims about the level of the series it names now:
+Every series-typed name has a **slot**, the value of `d` at its `Define` (0 for a parameter), and a **region**, which is one of four claims about the level of the series it names now:
 
 | Region | Claim |
 |---|---|
@@ -345,14 +215,9 @@ a **region**, which is one of four claims about the level of the series it names
 | `param(i)` | it is the very series passed as parameter `i` |
 | `under(P)` | no deeper than one of the parameters in the set `P` |
 
-Each region has a **bound**, the deepest it can be relative to `b`: `k` for `here(k)` and
-`within(k)`, and 0 for the other two, since whatever was passed in was alive at the call and so is
-no deeper than `b`.
+Each region has a **bound**, the deepest it can be relative to `b`: `k` for `here(k)` and `within(k)`, and 0 for the other two, since whatever was passed in was alive at the call and so is no deeper than `b`.
 
-To **weaken** a region is to forget that it is exact: `here(k)` becomes `within(k)`, `param(i)`
-becomes `under({i})`, the others stay. The **join** of two regions is the least claim both
-satisfy: equal regions join to themselves, two parameter regions join to `under` of both sets, and
-anything else joins to `within` of the larger bound.
+To **weaken** a region is to forget that it is exact: `here(k)` becomes `within(k)`, `param(i)` becomes `under({i})`, the others stay. The **join** of two regions is the least claim both satisfy: equal regions join to themselves, two parameter regions join to `under` of both sets, and anything else joins to `within` of the larger bound.
 
 ### The rules
 
@@ -371,163 +236,83 @@ anything else joins to `within` of the larger bound.
 | B11 | `Pull a rabbit.` ... `Done.` | The body is checked at `d + 1`. Names defined in it end with it. |
 | B12 | `Return v.` | Recorded for B9: `here(k)` as "made here", `within(k)` as "no deeper than the caller", the parameter regions as themselves. A function's summary is the join over its returns. |
 
-In B5 and B6 the value is worked out first and the allocator is pointed afterwards, so no call
-ever runs with the allocator redirected.
+In B5 and B6 the value is worked out first and the allocator is pointed afterwards, so no call ever runs with the allocator redirected.
 
-Against section 4: O1 is B1, B2 and B9, which never report a level shallower than the truth. O2 is
-B5 to B7, which store only where the level is exact. O3 is the allocator clause of B5 and B6. O4
-is B6 with B8.
+Against section 4: O1 is B1, B2 and B9, which never report a level shallower than the truth. O2 is B5 to B7, which store only where the level is exact. O3 is the allocator clause of B5 and B6. O4 is B6 with B8.
 
-Eight of the probes can be written in the core language, and `witnesses.py` runs them. Two of
-them were never wrong programs, only wrongly allocated ones: these rules **accept** `grow-1` and
-`alias-1` and run them safely, because B5 sends the growth home. The other six
-(`alias-2`, `element-2`, `param-1`, `param-2`, `result-1`, `result-3`) are refused. The same
-functions called where they are safe, at the depth of the series they are given, are accepted.
+Eight of the probes can be written in the core language, and `witnesses.py` runs them. Two of them were never wrong programs, only wrongly allocated ones: these rules **accept** `grow-1` and `alias-1` and run them safely, because B5 sends the growth home. The other six (`alias-2`, `element-2`, `param-1`, `param-2`, `result-1`, `result-3`) are refused. The same functions called where they are safe, at the depth of the series they are given, are accepted.
 
 ## 6. The theorem
 
 ### The state
 
-A state of a running program is: the stack of arenas, with levels 0 to `t`; the objects, each a
-series with a level, a buffer level and a list of elements; and the stack of function frames, each
-with its base `b`, its open rabbits, and its names. For a frame that is waiting on a call, read
-`d` as the depth of that call, so the frame above has base `b + d`.
+A state of a running program is: the stack of arenas, with levels 0 to `t`; the objects, each a series with a level, a buffer level and a list of elements; and the stack of function frames, each with its base `b`, its open rabbits, and its names. For a frame that is waiting on a call, read `d` as the depth of that call, so the frame above has base `b + d`.
 
 A state is **well formed** when all of these hold.
 
 - **W1, buffers stay home.** Every object's buffer is at the object's own level.
-- **W2, pointers go down.** If a series holds another, the one held is at the same level or a
-  shallower one.
-- **W3, slots.** In every frame, the series a name holds is no deeper than `b` + its slot, and its
-  slot is at most the frame's `d`.
-- **W4, regions are true.** In every frame, each name's region, as the checker computed it for the
-  point the frame has reached, is a true claim about the series the name holds.
-- **W5, stored-into parameters are at the base.** In every frame, each parameter the function
-  stores into was passed a series at level exactly `b`. Every parameter was passed a series no
-  deeper than `b`.
+- **W2, pointers go down.** If a series holds another, the one held is at the same level or a shallower one.
+- **W3, slots.** In every frame, the series a name holds is no deeper than `b` + its slot, and its slot is at most the frame's `d`.
+- **W4, regions are true.** In every frame, each name's region, as the checker computed it for the point the frame has reached, is a true claim about the series the name holds.
+- **W5, stored-into parameters are at the base.** In every frame, each parameter the function stores into was passed a series at level exactly `b`. Every parameter was passed a series no deeper than `b`.
 
-**Lemma 1 (nothing dangles).** In a well-formed state every object reachable from any name in any
-frame is at a level between 0 and `t`, so is alive.
+**Lemma 1 (nothing dangles).** In a well-formed state every object reachable from any name in any frame is at a level between 0 and `t`, so is alive.
 
-*Proof.* A name in the running frame holds a series at level at most `b` + slot ≤ `b + d` = `t`,
-by W3. A name in a waiting frame holds one at most at that frame's `b + d`, which is the base of
-the frame above and so at most `t`. Everything reached from there is no deeper, by W2. Arenas 0 to
-`t` are exactly the ones not freed. ∎
+*Proof.* A name in the running frame holds a series at level at most `b` + slot ≤ `b + d` = `t`, by W3. A name in a waiting frame holds one at most at that frame's `b + d`, which is the base of the frame above and so at most `t`. Everything reached from there is no deeper, by W2. Arenas 0 to `t` are exactly the ones not freed. ∎
 
-**Lemma 2 (bounds).** In a well-formed state, a value whose region has bound `k` is at level at
-most `b + k`, and `k` ≤ `d`.
+**Lemma 2 (bounds).** In a well-formed state, a value whose region has bound `k` is at level at most `b + k`, and `k` ≤ `d`.
 
-*Proof.* For `here` and `within` the first part is W4. For `param(i)` and `under(P)` the bound is
-0, and by W5 every parameter is at level at most `b`. For the second part: B1 gives `d`; a name's
-region was given by B3 or B4, and both leave its bound at most its slot, which is at most `d` by
-W3; B2 does not raise a bound; B9 gives `d` or a join of arguments' regions; B10 takes a
-maximum. ∎
+*Proof.* For `here` and `within` the first part is W4. For `param(i)` and `under(P)` the bound is 0, and by W5 every parameter is at level at most `b`. For the second part: B1 gives `d`; a name's region was given by B3 or B4, and both leave its bound at most its slot, which is at most `d` by W3; B2 does not raise a bound; B9 gives `d` or a join of arguments' regions; B10 takes a maximum. ∎
 
 ### The steps
 
-**Lemma 3 (values).** In a well-formed state, working out a value the checker accepted reaches no
-freed object, leaves the state well formed, and gives a value for which the region the checker
-computed is true.
+**Lemma 3 (values).** In a well-formed state, working out a value the checker accepted reaches no freed object, leaves the state well formed, and gives a value for which the region the checker computed is true.
 
-*Proof.* A name: Lemma 1, and W4. A new series: it is allocated at `t` = `b + d` with no
-override in force, so `here(d)` is true, and it holds nothing, so W1 and W2 are untouched.
-`item 1 of x`: the series `x` holds is alive by Lemma 1, and by W2 its first element is no deeper
-than it is. If `x` is `here(k)` or `within(k)` the element is at most `b + k`, which is
-`within(k)`. If `x` is `param(i)` the element is no deeper than parameter `i`, which is
-`under({i})`; `under(P)` likewise. A call: Lemma 5. ∎
+*Proof.* A name: Lemma 1, and W4. A new series: it is allocated at `t` = `b + d` with no override in force, so `here(d)` is true, and it holds nothing, so W1 and W2 are untouched. `item 1 of x`: the series `x` holds is alive by Lemma 1, and by W2 its first element is no deeper than it is. If `x` is `here(k)` or `within(k)` the element is at most `b + k`, which is `within(k)`. If `x` is `param(i)` the element is no deeper than parameter `i`, which is `under({i})`; `under(P)` likewise. A call: Lemma 5. ∎
 
-**Lemma 4 (statements).** If a well-formed state runs one statement the checker accepted, it
-reaches no freed object and the state after is well formed, with the regions the checker computed
-for the point after the statement.
+**Lemma 4 (statements).** If a well-formed state runs one statement the checker accepted, it reaches no freed object and the state after is well formed, with the regions the checker computed for the point after the statement.
 
 *Proof,* by cases, using Lemma 3 for the value first.
 
-*Define.* The new name has slot `d`, and any live series is at most `t` = `b + d`: W3. Its region
-is the value's: W4.
+*Define.* The new name has slot `d`, and any live series is at most `t` = `b + d`: W3. Its region is the value's: W4.
 
-*Becomes (B4).* The value is at most `b` + its bound by Lemma 2, and B4 made that at most `b` +
-the slot of `x`: W3. Its region is the value's: W4. No object changed.
+*Becomes (B4).* The value is at most `b` + its bound by Lemma 2, and B4 made that at most `b` + the slot of `x`: W3. Its region is the value's: W4. No object changed.
 
-*A store into `here(k)` (B5).* The target is at level exactly `b + k` by W4, and is alive. The
-value is at most `b` + its bound ≤ `b + k`, so putting it in the target keeps W2. If the series
-grows, the new buffer is allocated at depth `k`, which is the target's own level: W1. That arena
-exists because `k` ≤ `d` by Lemma 2. No name's region changed, and no level changed, so W3 to W5
-stand.
+*A store into `here(k)` (B5).* The target is at level exactly `b + k` by W4, and is alive. The value is at most `b` + its bound ≤ `b + k`, so putting it in the target keeps W2. If the series grows, the new buffer is allocated at depth `k`, which is the target's own level: W1. That arena exists because `k` ≤ `d` by Lemma 2. No name's region changed, and no level changed, so W3 to W5 stand.
 
-*A store into `param(i)` (B6).* B6 recorded `i` as stored into, so by W5 the target is at level
-exactly `b`. The value has bound 0, so it is at most `b`: W2. Growth is allocated at depth 0,
-which is `b`: W1.
+*A store into `param(i)` (B6).* B6 recorded `i` as stored into, so by W5 the target is at level exactly `b`. The value has bound 0, so it is at most `b`: W2. Growth is allocated at depth 0, which is `b`: W1.
 
-*A rabbit (B11).* The push makes `t + 1` the top and the body runs at `d + 1`, well formed by
-induction on the body. At `Done.` the names defined inside are gone. Every remaining name of this
-frame has slot at most `d`, so holds a series at most at `b + d` = `t − 1` by W3; names of waiting
-frames hold series at most at this frame's `b`; and by W2 nothing at level `t − 1` or below holds
-anything at level `t`. So no remaining name reaches arena `t`, and freeing it frees nothing
-reachable. The remaining regions are claims about levels at most `t − 1`, which did not move.
+*A rabbit (B11).* The push makes `t + 1` the top and the body runs at `d + 1`, well formed by induction on the body. At `Done.` the names defined inside are gone. Every remaining name of this frame has slot at most `d`, so holds a series at most at `b + d` = `t − 1` by W3; names of waiting frames hold series at most at this frame's `b`; and by W2 nothing at level `t − 1` or below holds anything at level `t`. So no remaining name reaches arena `t`, and freeing it frees nothing reachable. The remaining regions are claims about levels at most `t − 1`, which did not move.
 
-*If (B10).* The arm that ran leaves its regions true by induction. A join is a weaker claim than
-either side, so the joined regions are true as well.
+*If (B10).* The arm that ran leaves its regions true by induction. A join is a weaker claim than either side, so the joined regions are true as well.
 
-*Return (B12).* By F3 each arena of this frame above `b` is merged into the one below, so every
-object above level `b` is now at `b` and no other level moved. Moving levels this way cannot turn
-"same or shallower" into "deeper", so W1 and W2 stand. The frame is gone. Waiting frames hold only
-series at most at `b`, untouched.
+*Return (B12).* By F3 each arena of this frame above `b` is merged into the one below, so every object above level `b` is now at `b` and no other level moved. Moving levels this way cannot turn "same or shallower" into "deeper", so W1 and W2 stand. The frame is gone. Waiting frames hold only series at most at `b`, untouched.
 
-*State, and a call written as a statement.* `State x` reads only what Lemma 1 says is alive. A
-call is Lemma 5. ∎
+*State, and a call written as a statement.* `State x` reads only what Lemma 1 says is alive. A call is Lemma 5. ∎
 
-**Lemma 5 (calls).** Suppose a well-formed state calls `f`, accepted by the checker, with
-arguments accepted by B8. Then the call reaches no freed object; when it returns the state is well
-formed for the caller; and the region B9 gives the result is true.
+**Lemma 5 (calls).** Suppose a well-formed state calls `f`, accepted by the checker, with arguments accepted by B8. Then the call reaches no freed object; when it returns the state is well formed for the caller; and the region B9 gives the result is true.
 
-*Proof.* The new frame has base `b′` = `t`. Each argument is alive, so at most `b′`. Each
-parameter has slot 0 and region `param(i)`, true by construction: W3, W4. For W5, take a
-parameter `i` that `f` stores into. B8 required the argument to be `here(d)`, which by W4 is at
-level `b + d` = `t` = `b′`; or to be the caller's `param(j)` with `d` = 0, in which case `j` was
-recorded as stored into by the caller, the caller's own W5 puts it at the caller's `b`, and
-`b′` = `b + 0`. So the callee starts well formed, and by Lemma 4 on each statement of its body it
-stays so, by induction on the length of the run. A recursive call is one more step of the same
-run, which is why the induction is on the run and not on the shape of the program.
+*Proof.* The new frame has base `b′` = `t`. Each argument is alive, so at most `b′`. Each parameter has slot 0 and region `param(i)`, true by construction: W3, W4. For W5, take a parameter `i` that `f` stores into. B8 required the argument to be `here(d)`, which by W4 is at level `b + d` = `t` = `b′`; or to be the caller's `param(j)` with `d` = 0, in which case `j` was recorded as stored into by the caller, the caller's own W5 puts it at the caller's `b`, and `b′` = `b + 0`. So the callee starts well formed, and by Lemma 4 on each statement of its body it stays so, by induction on the length of the run. A recursive call is one more step of the same run, which is why the induction is on the run and not on the shape of the program.
 
-On return, the top is `b′` again (a `Return` merges, an ordinary end leaves no rabbit open). No
-object that existed before the call changed level. The caller's names hold what they held. So W3
-and W4 hold for the caller as before, and W1, W2 held throughout.
+On return, the top is `b′` again (a `Return` merges, an ordinary end leaves no rabbit open). No object that existed before the call changed level. The caller's names hold what they held. So W3 and W4 hold for the caller as before, and W1, W2 held throughout.
 
-The result. If every `Return` in `f` gave a `here(k)` value, the value was at `b′ + k` and the
-merge put it at `b′` = `b + d`: `here(d)`. If every `Return` gave `param(i)`, the result is the
-argument itself, with the argument's region. If every `Return` gave a value under parameters in
-`P`, it is no deeper than one of those arguments, which is the join of their regions weakened.
-Otherwise it was alive at the return, so at most `b′`: `within(d)`. ∎
+The result. If every `Return` in `f` gave a `here(k)` value, the value was at `b′ + k` and the merge put it at `b′` = `b + d`: `here(d)`. If every `Return` gave `param(i)`, the result is the argument itself, with the argument's region. If every `Return` gave a value under parameters in `P`, it is no deeper than one of those arguments, which is the join of their regions weakened. Otherwise it was alive at the return, so at most `b′`: `within(d)`. ∎
 
 **Theorem.** A core program accepted by rules B1 to B12 never reads or writes a freed object.
 
-*Proof.* The starting state, with one arena, one frame and no names, is well formed. By Lemmas 4
-and 5, every state the run reaches is well formed and no step reaches a freed object. ∎
+*Proof.* The starting state, with one arena, one frame and no names, is well formed. By Lemmas 4 and 5, every state the run reaches is well formed and no step reaches a freed object. ∎
 
 ### What the proof depends on
 
-Facts F1 to F5, and one thing asked of the compiler: that the allocator override is in force only
-while the store itself runs, never while the value being stored is worked out. Today's compiler
-does not do that. For `Insert`, the value's expression is emitted inside the statement that
-`EmitStoreWithEscape` wraps, so a call in it runs with the allocator redirected, and what the
-callee thinks it made "here" lands somewhere shallower. B1 and B9 are false of such a call, so the
-value would have to be worked out into a temporary first.
+Facts F1 to F5, and one thing asked of the compiler: that the allocator override is in force only while the store itself runs, never while the value being stored is worked out. Today's compiler does not do that. For `Insert`, the value's expression is emitted inside the statement that `EmitStoreWithEscape` wraps, so a call in it runs with the allocator redirected, and what the callee thinks it made "here" lands somewhere shallower. B1 and B9 are false of such a call, so the value would have to be worked out into a temporary first.
 
-On the runtime as it is now, growth no longer uses the override at all, so rules B5 and B6 would
-not set it and this dependency goes. The override is still what carries an escape *copy* to its
-destination, and a call inside a store still runs under it.
+On the runtime as it is now, growth no longer uses the override at all, so rules B5 and B6 would not set it and this dependency goes. The override is still what carries an escape *copy* to its destination, and a call inside a store still runs under it.
 
 ## 7. The mechanical check
 
-A proof on paper can be wrong in the same way the rules it replaces were wrong, so the model in
-[soundness/model/](soundness/model/) tests it three ways.
+A proof on paper can be wrong in the same way the rules it replaces were wrong, so the model in [soundness/model/](soundness/model/) tests it three ways.
 
-`regions.py` holds a machine that follows F1 to F5, and two checkers: **A**, today's rules as
-section 4 describes them, and **B**, the rules of section 5. `search.py` generates random
-well-typed core programs, asks each checker whether it accepts, and runs every accepted program
-down every path of its `If`s, once with every growth reallocating and once with none. After every
-statement it walks everything reachable from every name in every frame. Reaching a freed object
-is a failure.
+`regions.py` holds a machine that follows F1 to F5, and two checkers: **A**, today's rules as section 4 describes them, and **B**, the rules of section 5. `search.py` generates random well-typed core programs, asks each checker whether it accepts, and runs every accepted program down every path of its `If`s, once with every growth reallocating and once with none. After every statement it walks everything reachable from every name in every frame. Reaching a freed object is a failure.
 
 **The search.** Three runs of 400,000 programs each. "Tight" is a second generator that uses few names and mostly reuses them, so that statements act on each other more often.
 
@@ -541,17 +326,11 @@ is a failure.
 | accepted by B, with a rabbit in it | 285,526 | 285,078 | 308,642 |
 | accepted by B, with a function storing into a parameter | 89,970 | 89,417 | 60,954 |
 
-The last two rows are there so that "B accepted nothing unsafe" cannot be read as "B accepted
-nothing interesting".
+The last two rows are there so that "B accepted nothing unsafe" cannot be read as "B accepted nothing interesting".
 
-**Does the model match the real compiler?** Checker A in the model accepts unsafe programs of the
-same shapes as the probes of section 4, found without being told where to look. One of them, an
-outer value inserted into an outer series inside a rabbit, was found by the model first and
-confirmed on the real compiler afterwards (`grow-1`, `grow-2`).
+**Does the model match the real compiler?** Checker A in the model accepts unsafe programs of the same shapes as the probes of section 4, found without being told where to look. One of them, an outer value inserted into an outer series inside a rabbit, was found by the model first and confirmed on the real compiler afterwards (`grow-1`, `grow-2`).
 
-**Is each rule needed, and could the search see it missing?** A search that finds nothing proves
-little unless it can be shown to find something. So each rule of B was removed in turn, and the
-search run again. The number is how many random programs it took before one was accepted and unsafe (seed 5).
+**Is each rule needed, and could the search see it missing?** A search that finds nothing proves little unless it can be shown to find something. So each rule of B was removed in turn, and the search run again. The number is how many random programs it took before one was accepted and unsafe (seed 5).
 
 | Rule | Removed | First unsafe program accepted: ordinary | tight |
 |---|---|---:|---:|
@@ -568,61 +347,34 @@ search run again. The number is how many random programs it took before one was 
 
 Every removal lets an unsafe program through, and the search finds it. The rarer ones are also pinned by directed programs in `witnesses.py`, each refused by B and accepted-and-unsafe once its rule is gone. The numbers say how hard a search has to look: a rule that takes 40,000 programs to miss is one that 400,000 programs test about ten times.
 
-The limits of this check are the limits of a search: it covers small programs in the core
-language, it is not exhaustive, and it shares the model's reading of the runtime. It is evidence
-for the proof, not a replacement for it.
+The limits of this check are the limits of a search: it covers small programs in the core language, it is not exhaustive, and it shares the model's reading of the runtime. It is evidence for the proof, not a replacement for it.
 
 ## 8. What is not covered
 
-The theorem is about the core. For each thing left out, this is what a proof would have to add.
-None of it has been done.
+The theorem is about the core. For each thing left out, this is what a proof would have to add. None of it has been done.
 
-- **Text.** Immutable, so it cannot be stored *into*. What applies is O1 and the copy: a text is as
-  deep as where it was made, and a text stored outward has to be copied. Section 9 says how a
-  copy finds where to go when the depth of the target is not known; that is tested, not proved.
-- **Records and objects.** They are C structs copied by value, so a field that is a series behaves
-  as a second name for it. A store into a field is a store into a target that is not a plain name
-  (O2), and a method's receiver is a parameter (O4).
+- **Text.** Immutable, so it cannot be stored *into*. What applies is O1 and the copy: a text is as deep as where it was made, and a text stored outward has to be copied. Section 9 says how a copy finds where to go when the depth of the target is not known; that is tested, not proved.
+- **Records and objects.** They are C structs copied by value, so a field that is a series behaves as a second name for it. A store into a field is a store into a target that is not a plain name (O2), and a method's receiver is a parameter (O4).
 - **Maps.** A series with a second buffer; the same four obligations.
-- **Function values and captures.** A captured name is a parameter that does not appear in the
-  parameter list, so O4 applies to it. Holes #2 and the closure-escape rules in DESIGN.md are the
-  existing work here.
-- **Loops.** A loop is an `If` taken many times: the regions after it are the fixed point of
-  joining the body's result into its start. Regions are bounded by the nesting depth and the
-  number of parameters, so the fixed point is reached. The `For each` name is an element, which B2
-  weakens.
-- **Recursion.** Lemma 5 already goes through. The summaries of B6 and B12 for a function that
-  calls itself are a fixed point too.
-- **Failures, exceptions, `Stop`, `Skip`.** Each leaves rabbits early and frees their arenas. The
-  rabbit case of Lemma 4 covers a free at any exit, provided the exit frees exactly the arenas of
-  the rabbits it leaves. The "does not drift arena depth" tests pin that.
-- **Tasks and channels.** Values cross by copy. The obligation is that the copy is complete and
-  lands in the receiving thread's arena.
+- **Function values and captures.** A captured name is a parameter that does not appear in the parameter list, so O4 applies to it. Holes #2 and the closure-escape rules in DESIGN.md are the existing work here.
+- **Loops.** A loop is an `If` taken many times: the regions after it are the fixed point of joining the body's result into its start. Regions are bounded by the nesting depth and the number of parameters, so the fixed point is reached. The `For each` name is an element, which B2 weakens.
+- **Recursion.** Lemma 5 already goes through. The summaries of B6 and B12 for a function that calls itself are a fixed point too.
+- **Failures, exceptions, `Stop`, `Skip`.** Each leaves rabbits early and frees their arenas. The rabbit case of Lemma 4 covers a free at any exit, provided the exit frees exactly the arenas of the rabbits it leaves. The "does not drift arena depth" tests pin that.
+- **Tasks and channels.** Values cross by copy. The obligation is that the copy is complete and lands in the receiving thread's arena.
 
 ## 9. What the repaired rules cost, and what was built instead
 
-The rules of section 5 were chosen to need no runtime change, and that has a price. On the runtime
-of 0.29.0 they refuse three things that are ordinary:
+The rules of section 5 were chosen to need no runtime change, and that has a price. On the runtime of 0.29.0 they refuse three things that are ordinary:
 
-1. **Calling a function that stores into its parameter, from inside a rabbit, on a series from
-   outside.** This was `param-1`. It was unsafe, and with that runtime there was no safe way to
-   compile it, so the refusal was correct.
-2. **Growing or storing into an element.** `Insert 5 into item 1 of table`, and `Insert 5 into row`
-   inside `For each row in table`. The checker cannot know where an element lives, only that it
-   is no deeper than the series it came from (`element-1`, `element-2`).
+1. **Calling a function that stores into its parameter, from inside a rabbit, on a series from outside.** This was `param-1`. It was unsafe, and with that runtime there was no safe way to compile it, so the refusal was correct.
+2. **Growing or storing into an element.** `Insert 5 into item 1 of table`, and `Insert 5 into row` inside `For each row in table`. The checker cannot know where an element lives, only that it is no deeper than the series it came from (`element-1`, `element-2`).
 3. **Storing into a series whose region was joined across an `If`.**
 
-In the model's random programs, B refuses about one program in six that would in fact have run
-safely. The rules of 0.29.0 refuse about one in sixteen, and accept unsafe ones.
+In the model's random programs, B refuses about one program in six that would in fact have run safely. The rules of 0.29.0 refuse about one in sixteen, and accept unsafe ones.
 
-The second refusal is the one that would hurt real programs: a table of rows is the commonest
-nested shape there is. It comes entirely from O3. If the series header records which arena it was
-allocated in, a growing series can always put its new buffer there, and O3 is met by the runtime
-instead of by the checker. B5 and B6 then need exact levels only for stores of *series into
-series*; a number can be stored into any series at all.
+The second refusal is the one that would hurt real programs: a table of rows is the commonest nested shape there is. It comes entirely from O3. If the series header records which arena it was allocated in, a growing series can always put its new buffer there, and O3 is met by the runtime instead of by the checker. B5 and B6 then need exact levels only for stores of *series into series*; a number can be stored into any series at all.
 
-That variant was put in the model first (`regions.HOME`), and the search run on it, 60,000
-programs, seed 21:
+That variant was put in the model first (`regions.HOME`), and the search run on it, 60,000 programs, seed 21:
 
 | Runtime | B accepts | B accepts, and unsafe | B refuses, though safe as written | A accepts, and unsafe |
 |---|---:|---:|---:|---:|
@@ -630,175 +382,72 @@ programs, seed 21:
 | header remembers its arena, a merged arena forwards | 53,374 | **0** | 3,865 | 212 |
 | header remembers only its depth | 53,374 | **82** | 3,864 | 294 |
 
-Two things to read off it. The runtime change alone removes about four fifths of what the rules
-of 0.29.0 get wrong, and no program is refused for it. And the cheap version of it is unsound: a
-`Return` out of a rabbit merges that rabbit's arena into the one below (F3), so a series made
-inside and returned is no longer at the depth it remembers, and its next growth inside some later
-rabbit lands in that rabbit. The header has to name the arena, and a merged arena has to forward
-to the one it was merged into.
+Two things to read off it. The runtime change alone removes about four fifths of what the rules of 0.29.0 get wrong, and no program is refused for it. And the cheap version of it is unsound: a `Return` out of a rabbit merges that rabbit's arena into the one below (F3), so a series made inside and returned is no longer at the depth it remembers, and its next growth inside some later rabbit lands in that rabbit. The header has to name the arena, and a merged arena has to forward to the one it was merged into.
 
 ### What was built
 
-The second row. Both compilers give a series and a map header its arena and grow it there, and
-`cufet_arena_merge_down` leaves a forwarding stub. That is "F4 now" in section 2, and it is why six
-probes are right. Nothing was refused that was accepted before.
+The second row. Both compilers give a series and a map header its arena and grow it there, and `cufet_arena_merge_down` leaves a forwarding stub. That is "F4 now" in section 2, and it is why six probes are right. Nothing was refused that was accepted before.
 
-It is checked by the model's search and by the test suite, and the argument is short enough to
-give here.
+It is checked by the model's search and by the test suite, and the argument is short enough to give here.
 
-**Claim.** For every series or map a program can still reach, following its header's `home`
-through the `fwd` of each stub ends at the arena that holds its header. Growing it, or copying a
-value into it (`cufet_arena_alloc_in`, `cufet_alloc_home`), allocates in that arena; so a buffer is
-always in the arena of its own header, which is W1 of section 6.
+**Claim.** For every series or map a program can still reach, following its header's `home` through the `fwd` of each stub ends at the arena that holds its header. Growing it, or copying a value into it (`cufet_arena_alloc_in`, `cufet_alloc_home`), allocates in that arena; so a buffer is always in the arena of its own header, which is W1 of section 6.
 
 The proof is by induction over what the runtime does to arenas, read from the code generator.
 
-- **Made.** `_new` allocates the header with `cufet_arena_alloc` and records `cufet_arena_here()`.
-  The two choose the same arena by the same rule (an arena named by `cufet_alloc_home`, followed
-  through its stubs; else the override's depth; else the top). The chain is one step long.
+- **Made.** `_new` allocates the header with `cufet_arena_alloc` and records `cufet_arena_here()`. The two choose the same arena by the same rule (an arena named by `cufet_alloc_home`, followed through its stubs; else the override's depth; else the top). The chain is one step long.
 - **Pushed.** A new arena moves nothing.
-- **Merged** (`cufet_arena_merge_down`, F3). Every block of the top arena `a`, headers and buffers
-  alike, moves to the arena below, `p`; `a` stays behind as a stub with `fwd = p`, and the stub is
-  itself made one of `p`'s blocks. A chain that ended at `a` now ends at `p`, which holds the
-  header now. A chain that ended anywhere else is untouched.
-- **Popped** (`Done.`, F1). The top arena `t` and every block it holds are freed, stubs included.
-  A header in `t` is unreachable by Lemma 1, so its chain no longer matters. For a header that
-  survives, in some arena `x`, every stub on its chain was made one of the blocks of the arena it
-  forwards to, and was carried along by every later merge, so every stub on the chain is now a
-  block of `x`. None of them is in `t`, so none is freed. A stub lives exactly as long as the arena
-  its blocks went to, which is why no chain a program can still follow ever reaches a freed one,
-  and why a freed arena's address being handed out again for a new arena cannot be mistaken for it.
-- **Grown, or copied into.** The allocation follows the chain first, so it lands in the arena the
-  claim names.
+- **Merged** (`cufet_arena_merge_down`, F3). Every block of the top arena `a`, headers and buffers alike, moves to the arena below, `p`; `a` stays behind as a stub with `fwd = p`, and the stub is itself made one of `p`'s blocks. A chain that ended at `a` now ends at `p`, which holds the header now. A chain that ended anywhere else is untouched.
+- **Popped** (`Done.`, F1). The top arena `t` and every block it holds are freed, stubs included. A header in `t` is unreachable by Lemma 1, so its chain no longer matters. For a header that survives, in some arena `x`, every stub on its chain was made one of the blocks of the arena it forwards to, and was carried along by every later merge, so every stub on the chain is now a block of `x`. None of them is in `t`, so none is freed. A stub lives exactly as long as the arena its blocks went to, which is why no chain a program can still follow ever reaches a freed one, and why a freed arena's address being handed out again for a new arena cannot be mistaken for it.
+- **Grown, or copied into.** The allocation follows the chain first, so it lands in the arena the claim names.
 
-A value that crosses to another thread is deep-copied into the receiving thread's arena, and the
-copy records that arena (`CopyHome`), so the claim holds there from its making. A header built on
-the heap for the crossing records no arena and is never grown, only copied out again.
+A value that crosses to another thread is deep-copied into the receiving thread's arena, and the copy records that arena (`CopyHome`), so the claim holds there from its making. A header built on the heap for the crossing records no arena and is never grown, only copied out again.
 
-This is the runtime half. W2 to W5 are about what the checker allows, and section 6's argument for
-them uses W1 only as a fact about where buffers are. It needs no change for this runtime, which
-asks less of the checker than the one it was written for.
+This is the runtime half. W2 to W5 are about what the checker allows, and section 6's argument for them uses W1 only as a fact about where buffers are. It needs no change for this runtime, which asks less of the checker than the one it was written for.
 
-Then O1, in both checkers, which is rule B9 fitted to the checker as it is. The checker keeps its
-one number per name; a function's return-depth signature gained a third kind of entry beside "this
-parameter" and "the receiver", meaning "something the function made, or anything not traced to a
-parameter". A call whose signature holds it is as deep as the call. The walk that builds the
-signature no longer names the statements it enters: it reaches every `Return`, `Define` and
-`becomes` of a body and stops only at a body that returns for itself, and anything it cannot trace
-counts as made. That is coarser than B9, which can tell "exactly here" from "no deeper than here",
-and the difference costs nothing until a store needs the exact answer, which is O2.
+Then O1, in both checkers, which is rule B9 fitted to the checker as it is. The checker keeps its one number per name; a function's return-depth signature gained a third kind of entry beside "this parameter" and "the receiver", meaning "something the function made, or anything not traced to a parameter". A call whose signature holds it is as deep as the call. The walk that builds the signature no longer names the statements it enters: it reaches every `Return`, `Define` and `becomes` of a body and stops only at a body that returns for itself, and anything it cannot trace counts as made. That is coarser than B9, which can tell "exactly here" from "no deeper than here", and the difference costs nothing until a store needs the exact answer, which is O2.
 
-What it refused that was accepted before, measured: none of the 229 programs in the repository,
-and three of the 1,128 hand-written programs the two checkers are compared on. All three were
-the hole itself, written down earlier as accepted: a series a call made inside a rabbit, inserted
-into a series outside it.
+What it refused that was accepted before, measured: none of the 229 programs in the repository, and three of the 1,128 hand-written programs the two checkers are compared on. All three were the hole itself, written down earlier as accepted: a series a call made inside a rabbit, inserted into a series outside it.
 
-Then O4, in both checkers, which is B6 with B8 fitted to the checker as it is, and carried
-further than the core language goes.
+Then O4, in both checkers, which is B6 with B8 fitted to the checker as it is, and carried further than the core language goes.
 
-- **A pair.** As a body is checked, each store of a series, a map, or an object holding one is
-  written down as a pair of places: where the value may come from and where it may go. A place is
-  a parameter, the object a method is cast on, "something this body makes", or a name the body
-  captured, with that name's depth where the body was written. The walk of O1 says which.
-- **At a cast**, each pair of the function cast is judged with the real depths: an argument's, the
-  depth of the cast for what the function makes, a captured name's own. The source may not be
-  deeper than the target. This is done after every body has been checked, so the order functions
-  are written in does not matter, and a function that hands its parameter to one that stores
-  takes that store as its own.
-- **A captured depth** is counted in the body the function was written in. A cast from that body
-  compares it directly. A function written beside it captures the same names and takes the pair
-  over. A parameter of the body around is carried up as that body's parameter. From anywhere else
-  the two counts cannot be compared, and the store is refused in the body.
-- **A function handed to another function** is judged where it is handed over, as though it were
-  cast there on anything the receiver is given or makes. That is wrong only if the receiver casts
-  it somewhere deeper, so each function records which of its function parameters it casts inside a
-  rabbit of its own, or keeps, or hands on to a function that does, and a function that stores is
-  refused for such a parameter. A function that stores nothing is not looked at.
-- **Kept where nothing follows it**, in a series or a field or handed back, a function that
-  stores is refused.
+- **A pair.** As a body is checked, each store of a series, a map, or an object holding one is written down as a pair of places: where the value may come from and where it may go. A place is a parameter, the object a method is cast on, "something this body makes", or a name the body captured, with that name's depth where the body was written. The walk of O1 says which.
+- **At a cast**, each pair of the function cast is judged with the real depths: an argument's, the depth of the cast for what the function makes, a captured name's own. The source may not be deeper than the target. This is done after every body has been checked, so the order functions are written in does not matter, and a function that hands its parameter to one that stores takes that store as its own.
+- **A captured depth** is counted in the body the function was written in. A cast from that body compares it directly. A function written beside it captures the same names and takes the pair over. A parameter of the body around is carried up as that body's parameter. From anywhere else the two counts cannot be compared, and the store is refused in the body.
+- **A function handed to another function** is judged where it is handed over, as though it were cast there on anything the receiver is given or makes. That is wrong only if the receiver casts it somewhere deeper, so each function records which of its function parameters it casts inside a rabbit of its own, or keeps, or hands on to a function that does, and a function that stores is refused for such a parameter. A function that stores nothing is not looked at.
+- **Kept where nothing follows it**, in a series or a field or handed back, a function that stores is refused.
 
-Nothing is refused where a function is written. The first version of this rule did refuse there:
-a function with no name could store into nothing it captured, and a function that stored into its
-parameters could not be a value at all. That was sound and refused ordinary programs with no
-rabbit in them, a closure gathering rows into a list being one, so it was taken out.
+Nothing is refused where a function is written. The first version of this rule did refuse there: a function with no name could store into nothing it captured, and a function that stored into its parameters could not be a value at all. That was sound and refused ordinary programs with no rabbit in them, a closure gathering rows into a list being one, so it was taken out.
 
-What it refused that was accepted before, measured on the rule as built: none of the 235
-programs in the repository and none of the 1,134 hand-written programs. That is no evidence that
-the refusals are rare, only that neither corpus holds the shapes; 45 programs written for the
-rule, accepted and refused, are in the parity list now.
+What it refused that was accepted before, measured on the rule as built: none of the 235 programs in the repository and none of the 1,134 hand-written programs. That is no evidence that the refusals are rare, only that neither corpus holds the shapes; 45 programs written for the rule, accepted and refused, are in the parity list now.
 
-It is not in the model and not proved. The model's functions cannot be values and capture
-nothing, so the search says nothing about either.
+It is not in the model and not proved. The model's functions cannot be values and capture nothing, so the search says nothing about either.
 
-Then O2, in both checkers. B5 to B7 refuse every store whose target is not known exactly; this
-keeps two lower bounds instead and refuses only what goes below them.
+Then O2, in both checkers. B5 to B7 refuse every store whose target is not known exactly; this keeps two lower bounds instead and refuses only what goes below them.
 
-- **Two more numbers for a name**, beside the depth it was defined at: how deep the container it
-  names is (a second name takes this from the name it stands for), and how deep the shallowest
-  thing reachable through it is. Both only ever go down.
-- **What lowers the second:** a store into the name, by any path; a new value for it; and a cast,
-  by what its callee really stores between its arguments (every pair of them, where the callee
-  is not known).
-- **The judgement:** a store into the container a plain name names is held to the first number; a
-  store through an element or a field, to the second. It is made after the whole program has
-  been checked, against the numbers as they ended, because a statement further down a loop can
-  lower a number that a store further up depends on.
-- **Inside a function** every depth is 0 and the numbers say nothing, so the walk of O4 keeps, for
-  each local, what has been stored into it. A store through an element or a field of a local is
-  a store into any of those; a store into the local itself is not.
+- **Two more numbers for a name**, beside the depth it was defined at: how deep the container it names is (a second name takes this from the name it stands for), and how deep the shallowest thing reachable through it is. Both only ever go down.
+- **What lowers the second:** a store into the name, by any path; a new value for it; and a cast, by what its callee really stores between its arguments (every pair of them, where the callee is not known).
+- **The judgement:** a store into the container a plain name names is held to the first number; a store through an element or a field, to the second. It is made after the whole program has been checked, against the numbers as they ended, because a statement further down a loop can lower a number that a store further up depends on.
+- **Inside a function** every depth is 0 and the numbers say nothing, so the walk of O4 keeps, for each local, what has been stored into it. A store through an element or a field of a local is a store into any of those; a store into the local itself is not.
 
-`holds-1` and `holds-2` were written while fitting this: the first two programs of this
-obligation could be refused by reading a second name's depth from the name it stands for and a
-field's from its object, and that alone would have left both of these accepted.
+`holds-1` and `holds-2` were written while fitting this: the first two programs of this obligation could be refused by reading a second name's depth from the name it stands for and a field's from its object, and that alone would have left both of these accepted.
 
-- **A field of an object written out** into a name, and given no other kind of value, is a name of
-  its own, in both of the above: an object is held by value, so `copy's children` IS the series
-  written into that field, not something the object might hold. Without this a function that
-  writes a node out and inserts copies of its argument's children into the node's own field was
-  taken to store into its argument; `copied-node` in the checker written in Cufet is that shape.
+- **A field of an object written out** into a name, and given no other kind of value, is a name of its own, in both of the above: an object is held by value, so `copy's children` IS the series written into that field, not something the object might hold. Without this a function that writes a node out and inserts copies of its argument's children into the node's own field was taken to store into its argument; `copied-node` in the checker written in Cufet is that shape.
 
-Known to be coarser than it need be, and refusing a program that is safe: an object made from an
-argument (not written out), then a method that grows the object's own field (from O4).
+Known to be coarser than it need be, and refusing a program that is safe: an object made from an argument (not written out), then a method that grows the object's own field (from O4).
 
 It is not in the model and not proved.
 
-Then text, O4's second half. A text, or anything else held in a region that holds no container,
-is never refused: one stored where it would outlive its region is copied to where it is stored.
-That needs the depth of the target, and inside a body a parameter, the object a method is cast on
-and a captured name have none the body can know.
+Then text, O4's second half. A text, or anything else held in a region that holds no container, is never refused: one stored where it would outlive its region is copied to where it is stored. That needs the depth of the target, and inside a body a parameter, the object a method is cast on and a captured name have none the body can know.
 
-- **The checkers** mark such a store `-1` (`HomeEscape` in C#) where the walk of O4 finds that its
-  target may be something from outside the body, or something that outlives every region. Both
-  checkers decide it at the end of the check, as they decide the stores of a series.
-- **The compilers**, for a store marked `-1`, copy the value into the region the target lives in,
-  found when the program runs: a series' or a map's own arena, which its header has recorded since
-  O3, or the program's own arena for a field of an object, which records none. A field's copy is
-  therefore kept until the program ends.
-- **Setting an item** (`Item 1 of names becomes …`) copied nothing at all, even outside any
-  function, where every other store copied; `text-1` is that program, and it read freed memory on
-  the compiler written in C#. It copies as inserting does now.
+- **The checkers** mark such a store `-1` (`HomeEscape` in C#) where the walk of O4 finds that its target may be something from outside the body, or something that outlives every region. Both checkers decide it at the end of the check, as they decide the stores of a series.
+- **The compilers**, for a store marked `-1`, copy the value into the region the target lives in, found when the program runs: a series' or a map's own arena, which its header has recorded since O3, or the program's own arena for a field of an object, which records none. A field's copy is therefore kept until the program ends.
+- **Setting an item** (`Item 1 of names becomes …`) copied nothing at all, even outside any function, where every other store copied; `text-1` is that program, and it read freed memory on the compiler written in C#. It copies as inserting does now.
 
-What is left is what no test can show: sections 6 and 8 prove the core, the arena that forwards
-is argued above, and O2 and O4 as built are checked by the probes, the suite and the model's
-random programs run against the real tools (`docs/soundness/model/against_cufet.py`), not by
-proof. That search's first run, on 2026-11-19, found `result-5`.
+What is left is what no test can show: sections 6 and 8 prove the core, the arena that forwards is argued above, and O2 and O4 as built are checked by the probes, the suite and the model's random programs run against the real tools (`docs/soundness/model/against_cufet.py`), not by proof. That search's first run, on 2026-11-19, found `result-5`.
 
-The model knows only the core, so the rules of the full language are searched a second way
-(`docs/soundness/model/fuzz_cufet.py`): random programs written straight in Cufet, with text, maps,
-an object with fields, a method and a getter, functions as values, closures, a series of functions
-and functions nested in functions, tasks (awaited, and sending through a channel), fallible
-functions and `Try`. Each one `check` accepts is built under AddressSanitizer and run both ways,
-which reports any read of freed memory on the first run, with no model to be wrong. Its runs on
-2026-11-19 found no read of freed memory. They found bugs that were not about regions — in the
-compilers, in a task's capture check, and in a task that fails before it sends — all fixed
-(CHANGELOG). After the first fixes, 4,000 programs had 2,917 accepted and run clean and 1,056
-refused by the region rules; with tasks and `Try` added, 1,000 more had 755 accepted and run clean.
+The model knows only the core, so the rules of the full language are searched a second way (`docs/soundness/model/fuzz_cufet.py`): random programs written straight in Cufet, with text, maps, an object with fields, a method and a getter, functions as values, closures, a series of functions and functions nested in functions, tasks (awaited, and sending through a channel), fallible functions and `Try`. Each one `check` accepts is built under AddressSanitizer and run both ways, which reports any read of freed memory on the first run, with no model to be wrong. Its runs on 2026-11-19 found no read of freed memory. They found bugs that were not about regions — in the compilers, in a task's capture check, and in a task that fails before it sends — all fixed (CHANGELOG). After the first fixes, 4,000 programs had 2,917 accepted and run clean and 1,056 refused by the region rules; with tasks and `Try` added, 1,000 more had 755 accepted and run clean.
 
-These rules refuse programs that are accepted today, so they are a change to the language. The
-one question that was open in them is settled: a function called inside a rabbit that returns a
-series it made, kept in a name outside, is refused and not copied out. Copying would keep the
-program and make the name outside a different series from the one the function returned, which
-the interpreter would not show.
+These rules refuse programs that are accepted today, so they are a change to the language. The one question that was open in them is settled: a function called inside a rabbit that returns a series it made, kept in a name outside, is refused and not copied out. Copying would keep the program and make the name outside a different series from the one the function returned, which the interpreter would not show.
 
 ## 10. Running it again
 
@@ -813,8 +462,4 @@ python docs/soundness/model/against_cufet.py 200000 11   the model's programs, h
 python docs/soundness/model/fuzz_cufet.py 1000 3 6        the whole language, built under ASan in WSL, 6 at once
 ```
 
-A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.
-Every probe is also in `tests/fixtures/soundness/`, as it is or as a program of the same shape:
-`*-legal.cufe` for one that runs right, `escape-*.cufe` for one that is refused. The probes here
-keep the churn that makes a read of freed memory show on Windows; the fixtures are what the suite
-holds both backends to.
+A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one. Every probe is also in `tests/fixtures/soundness/`, as it is or as a program of the same shape: `*-legal.cufe` for one that runs right, `escape-*.cufe` for one that is refused. The probes here keep the churn that makes a read of freed memory show on Windows; the fixtures are what the suite holds both backends to.

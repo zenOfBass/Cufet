@@ -1,15 +1,8 @@
 # Cufet Language Reference
 
-The complete reference for Cufet `0.30.0`. For a quick introduction and taste of
-the language, see [README.md](../README.md). For the reasoning behind the
-design, see [DESIGN.md](DESIGN.md); for what comes next, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges,
-and the constraints worth knowing before you hit them, see [GRAMMAR.md](GRAMMAR.md). The books
-Cufet ships with have their own reference in [BOOKS.md](BOOKS.md).
+The complete reference for Cufet `0.30.0`. For a quick introduction and taste of the language, see [README.md](../README.md). For the reasoning behind the design, see [DESIGN.md](DESIGN.md); for what comes next, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges, and the constraints worth knowing before you hit them, see [GRAMMAR.md](GRAMMAR.md). The books Cufet ships with have their own reference in [BOOKS.md](BOOKS.md).
 
-Cufet either runs interpreted or compiles to a native binary, and the two share a
-front end. **Everything here applies to both** unless it says otherwise; the few
-deliberate differences are marked where they arise and summarised under
-[Compiling to a native binary](#compiling-to-a-native-binary).
+Cufet either runs interpreted or compiles to a native binary, and the two share a front end. **Everything here applies to both** unless it says otherwise; the few deliberate differences are marked where they arise and summarised under [Compiling to a native binary](#compiling-to-a-native-binary).
 
 ---
 
@@ -126,8 +119,7 @@ deliberate differences are marked where they arise and summarised under
 | `Increment name by expr.` | Add to it in place — `name becomes name + expr` |
 | `Decrement name by expr.` | Subtract from it in place |
 
-**`Increment` and `Decrement` name the target once**, which is the whole point —
-`X becomes X + 1` repeats the name, and that is where a typo hides:
+**`Increment` and `Decrement` name the target once**, which is the whole point — `X becomes X + 1` repeats the name, and that is where a typo hides:
 
 ```cufet-fragment
 Increment i by 1.                              ← the i becomes i + 1
@@ -136,16 +128,11 @@ Increment one's tally by 3.                    ← a field, from inside a method
 Increment total by item at (rr, cc) of board.  ← the amount is any expression
 ```
 
-The target must be a plain name or a possessive chain, because the desugaring names
-it twice. Numeric only: growing a series is `Insert`, and the two never read alike.
+The target must be a plain name or a possessive chain, because the desugaring names it twice. Numeric only: growing a series is `Insert`, and the two never read alike.
 
-Articles (`a`, `an`, `the`) are noise **almost** everywhere — `Define the total as 0.`
-and `Define total as 0.` are identical, and so are `given (the number n)` and
-`given (number n)`.
+Articles (`a`, `an`, `the`) are noise **almost** everywhere — `Define the total as 0.` and `Define total as 0.` are identical, and so are `given (the number n)` and `given (number n)`.
 
-**The exception: `the` is the named-field marker.** Wherever a field could be
-*positional* instead, `the` is what says a name follows — and there it is required,
-not decoration:
+**The exception: `the` is the named-field marker.** Wherever a field could be *positional* instead, `the` is what says a name follows — and there it is required, not decoration:
 
 ```cufet
 Define object point with (text, number).            ← positional: type only
@@ -157,41 +144,31 @@ Define c as a new card  { the suit "hearts" }.      ← named values
 Define r as a record with ("hatchback", the make "Honda").   ← both at once
 ```
 
-That last line is why it cannot be dropped: without `the`, `make "Honda"` is
-indistinguishable from two positional values. So `{ the suit suit }` is not a
-stutter — it is `the` (a name follows), `suit` (the field), `suit` (the variable),
-which only reads oddly because the two share a name.
+That last line is why it cannot be dropped: without `the`, `make "Honda"` is indistinguishable from two positional values. So `{ the suit suit }` is not a stutter — it is `the` (a name follows), `suit` (the field), `suit` (the variable), which only reads oddly because the two share a name.
 
-Everywhere a name is the *only* possibility — parameters, `Define`, `In m, entry
-for k becomes v` — the article stays pure noise.
+Everywhere a name is the *only* possibility — parameters, `Define`, `In m, entry for k becomes v` — the article stays pure noise.
 
 #### Explicit types
 
-A type may be written between the article and the name — the same
-`the <type> <name>` shape used by parameters and object fields:
+A type may be written between the article and the name — the same `the <type> <name>` shape used by parameters and object fields:
 
 ```cufet
 Define the text name as "Nathan".
 Define the number attempts as 0.
 ```
 
-Without one, a variable's type is whatever its first value was. With one, the
-type is what you declared and the value only has to **fit** it — the same single
-implicit widening `becomes` and `return` perform. That difference is the whole
-point, and it matters most for a union:
+Without one, a variable's type is whatever its first value was. With one, the type is what you declared and the value only has to **fit** it — the same single implicit widening `becomes` and `return` perform. That difference is the whole point, and it matters most for a union:
 
 ```cufet
 Define the (number or text) x as 42.
 The x becomes "hello".                     ← legal: x holds either
 ```
 
-`Define x as 42.` would make `x` a number, and the reassignment a type error.
-A union-typed variable can only be written this way.
+`Define x as 42.` would make `x` a number, and the reassignment a type error. A union-typed variable can only be written this way.
 
 A value that does not fit is an error at the declaration, naming both types.
 
-Keywords are case-insensitive (`Cast`, `cast`, and `CAST` are the same).
-Identifiers are not (see [Identifiers](#identifiers)).
+Keywords are case-insensitive (`Cast`, `cast`, and `CAST` are the same). Identifiers are not (see [Identifiers](#identifiers)).
 
 ---
 
@@ -199,20 +176,13 @@ Identifiers are not (see [Identifiers](#identifiers)).
 
 - Must start with a lowercase letter (`total`, `my-var`, `x2`).
 - Internal dashes allowed: `receipt-total` is one identifier.
-- `Total` (uppercase-initial) is a lexer error — uppercase-initial is reserved
-  for keywords. (Keywords themselves are case-insensitive, but a non-keyword word
-  must start lowercase, so every uppercase-initial word in a program is provably
-  a keyword and every lowercase one is a name — roles are parseable by eye.)
-- Binary `-` requires surrounding whitespace: `a - b` is subtraction; `a-b` is
-  an identifier.
-- `a`, `an`, `the` are reserved as noise (articles) and cannot be used as
-  identifiers.
+- `Total` (uppercase-initial) is a lexer error — uppercase-initial is reserved for keywords. (Keywords themselves are case-insensitive, but a non-keyword word must start lowercase, so every uppercase-initial word in a program is provably a keyword and every lowercase one is a name — roles are parseable by eye.)
+- Binary `-` requires surrounding whitespace: `a - b` is subtraction; `a-b` is an identifier.
+- `a`, `an`, `the` are reserved as noise (articles) and cannot be used as identifiers.
 
 ### Comments
 
-Cufet has two comment forms, spelled the way C, Rust, Go and JavaScript spell them: `//` to the
-end of a line, and `/* ... */` for a block. Everything inside either — including newlines, `.`s,
-and any Cufet syntax — is stripped by the lexer before parsing.
+Cufet has two comment forms, spelled the way C, Rust, Go and JavaScript spell them: `//` to the end of a line, and `/* ... */` for a block. Everything inside either — including newlines, `.`s, and any Cufet syntax — is stripped by the lexer before parsing.
 
 ```cufet
 // this is a comment
@@ -227,9 +197,7 @@ Define y as 10.
 
 **`//` needs no terminator.** It ends at the newline, or at end of file if it is the last line.
 
-**Block comments nest.** An inner `/*` opens a nested comment, and the outer one ends only at the
-`*/` that closes it — so you can comment out a block that already contains comments, which
-is the usual reason to reach for a block comment at all:
+**Block comments nest.** An inner `/*` opens a nested comment, and the outer one ends only at the `*/` that closes it — so you can comment out a block that already contains comments, which is the usual reason to reach for a block comment at all:
 
 ```
 /* disabled while I test something else
@@ -242,18 +210,13 @@ Done.
 */
 ```
 
-Everything above is commented out, including the inner `/* double it */`. This is the one place
-Cufet's comments differ from C's, and it is the difference Rust, Swift and D also make: C's
-non-nesting block comment ends at the first `*/`, which breaks exactly the case above.
+Everything above is commented out, including the inner `/* double it */`. This is the one place Cufet's comments differ from C's, and it is the difference Rust, Swift and D also make: C's non-nesting block comment ends at the first `*/`, which breaks exactly the case above.
 
-**They do not interfere with each other.** A `/*` inside a `//` comment does not open a block, and
-a `//` inside a block comment is just text. Comment markers inside a string literal are text too —
-`State "http://example.com".` prints the whole URL.
+**They do not interfere with each other.** A `/*` inside a `//` comment does not open a block, and a `//` inside a block comment is just text. Comment markers inside a string literal are text too — `State "http://example.com".` prints the whole URL.
 
 **Division is unaffected.** `/` is a single-character token, so `6 / 2` and `6/2` both divide.
 
-**Unterminated comment.** A `/*` with no matching `*/` before end of file is a lexer error naming
-the line the **outermost** comment opened on — the one you have to go find:
+**Unterminated comment.** A `/*` with no matching `*/` before end of file is a lexer error naming the line the **outermost** comment opened on — the one you have to go find:
 
 ```
 /* forgot to close
@@ -272,11 +235,9 @@ Define pi as 3.14159 permanently.
 Define greeting as "Hello!" permanently.
 ```
 
-A permanent binding can never be reassigned — `max-retries becomes 4.` is a
-static type error that names both the declaration line and the violation.
+A permanent binding can never be reassigned — `max-retries becomes 4.` is a static type error that names both the declaration line and the violation.
 
-**A top-level constant is shared** — functions and methods can read it, unlike ordinary top-level
-data:
+**A top-level constant is shared** — functions and methods can read it, unlike ordinary top-level data:
 
 ```cufet-refused
 Define max-retries as 3 permanently.
@@ -297,11 +258,9 @@ Define object job with (the number tries):
 Done.
 ```
 
-Every body that leaves the top-level scope reads them on the same terms — a function, a method, a
-getter, a setter, an unmaker, an operator overload, a pipe stage.
+Every body that leaves the top-level scope reads them on the same terms — a function, a method, a getter, a setter, an unmaker, an operator overload, a pipe stage.
 
-A constant written in `Pull a rabbit.` or `Pull a book on …` is shared in the same way, and can be read
-after the block's `Done.`:
+A constant written in `Pull a rabbit.` or `Pull a book on …` is shared in the same way, and can be read after the block's `Done.`:
 
 ```cufet
 Pull a rabbit.
@@ -318,46 +277,29 @@ State cast suit-count.
 
 Calling a function before the line that gives a constant its value stops the program.
 
-The difference is mutation, not scope. Functions are kept away from top-level data so data flow
-stays explicit and nothing can be changed behind your back — and a permanent binding cannot be
-changed at all, so it is safe to share. For anything mutable, pass it in as a parameter.
+The difference is mutation, not scope. Functions are kept away from top-level data so data flow stays explicit and nothing can be changed behind your back — and a permanent binding cannot be changed at all, so it is safe to share. For anything mutable, pass it in as a parameter.
 
-**Shallow by construction:** `permanently` fixes the *binding*, not the
-*contents*. A permanent series or map can still add and remove elements; a
-permanent object can still mutate its fields — those operations go through
-`Insert`/`Remove`/field-set, not `becomes`, so they are not touched by the
-constant rule. Only `becomes` on the name itself is locked — and `Increment`,
-which is `becomes` in disguise, is locked with it.
+**Shallow by construction:** `permanently` fixes the *binding*, not the *contents*. A permanent series or map can still add and remove elements; a permanent object can still mutate its fields — those operations go through `Insert`/`Remove`/field-set, not `becomes`, so they are not touched by the constant rule. Only `becomes` on the name itself is locked — and `Increment`, which is `becomes` in disguise, is locked with it.
 
 ---
 
 ### Arithmetic
 
-Standard `+ - * / %` with `()` and conventional precedence. Unary `-` supported.
-Uses `decimal` — no floating-point surprises.
+Standard `+ - * / %` with `()` and conventional precedence. Unary `-` supported. Uses `decimal` — no floating-point surprises.
 
-`%` is modulo (remainder). Binary `-` requires surrounding whitespace to
-distinguish it from a dash inside an identifier: `a - b` is subtraction,
-`a-b` is one identifier.
+`%` is modulo (remainder). Binary `-` requires surrounding whitespace to distinguish it from a dash inside an identifier: `a - b` is subtraction, `a-b` is one identifier.
 
-Results print in their minimal form regardless of scale picked up along the
-way — `1.5 + 0.5` displays as `2`, not `2.0`.
+Results print in their minimal form regardless of scale picked up along the way — `1.5 + 0.5` displays as `2`, not `2.0`.
 
-A number literal can carry an **exponent**: `6.022e23`, `1E-9`, `2e+2`. It means exactly the
-number written out in full, so `1.5e3` is `1500`. The `e` counts only when a digit follows it (or
-a sign and then a digit), so `2 * e` still reads a name called `e`.
+A number literal can carry an **exponent**: `6.022e23`, `1E-9`, `2e+2`. It means exactly the number written out in full, so `1.5e3` is `1500`. The `e` counts only when a digit follows it (or a sign and then a digit), so `2 * e` still reads a name called `e`.
 
-A number holds up to 28 places after the point and 29 digits in all. A literal with **more places
-than that rounds**, to the nearest, half to even, so `1e-40` is `0`. A literal **larger** than
-the largest number, `79228162514264337593543950335` (about `7.9e28`), is refused. An exponent
-is notation, not range: `1e50` does not fit any better than its fifty-one digits would.
+A number holds up to 28 places after the point and 29 digits in all. A literal with **more places than that rounds**, to the nearest, half to even, so `1e-40` is `0`. A literal **larger** than the largest number, `79228162514264337593543950335` (about `7.9e28`), is refused. An exponent is notation, not range: `1e50` does not fit any better than its fifty-one digits would.
 
 ---
 
 ### Facts (boolean literals)
 
-`true` and `false` are **keywords** that produce `fact` values — the boolean type.
-They work exactly like number or text literals: anywhere a `fact` is valid.
+`true` and `false` are **keywords** that produce `fact` values — the boolean type. They work exactly like number or text literals: anywhere a `fact` is valid.
 
 ```
 Define flag as true.
@@ -370,16 +312,13 @@ Send true through ch.             ← channel of fact
 Define b as (x > 5).              ← comparison also produces a fact
 ```
 
-`fact` is the type produced by comparisons, logic operators, `contains`, `has a key
-for`, `an interrupt is requested`, and `a random guess` — `true`/`false` are simply
-the literal forms of that same type.
+`fact` is the type produced by comparisons, logic operators, `contains`, `has a key for`, `an interrupt is requested`, and `a random guess` — `true`/`false` are simply the literal forms of that same type.
 
 ---
 
 ### Comparisons
 
-Both **symbol forms** and **word forms** work in both expression position and
-condition position — they are the same operation (compare, produce a `fact`).
+Both **symbol forms** and **word forms** work in both expression position and condition position — they are the same operation (compare, produce a `fact`).
 
 **Symbol forms** (`=` `<` `>` `<=` `>=`) — terse, math-style:
 ```cufet-fragment
@@ -390,8 +329,7 @@ While count < bound, repeat:
 Define big as x > 100.
 ```
 
-**Word forms** (`is`, `is not`, `is greater than`, `is less than`, `is N or more`,
-`is N or less`) — verbose, sentence-style:
+**Word forms** (`is`, `is not`, `is greater than`, `is less than`, `is N or more`, `is N or less`) — verbose, sentence-style:
 ```cufet-fragment
 If x is 5:
 If x is not 3:
@@ -401,10 +339,7 @@ While x is less than bound, repeat:
 Define in-range as (x is 5 or more).
 ```
 
-`=` is equality only — assignment is `becomes`, declaration is `Define ... as`.
-Word forms are the **idiomatic, recommended** style for `If`/`While` conditions
-because they read like English. Symbol forms are natural in expression position.
-Either works anywhere.
+`=` is equality only — assignment is `becomes`, declaration is `Define ... as`. Word forms are the **idiomatic, recommended** style for `If`/`While` conditions because they read like English. Symbol forms are natural in expression position. Either works anywhere.
 
 ---
 
@@ -418,9 +353,7 @@ If x is 0 or x is 100, state "edge".
 If not (x is 5), state "not five".
 ```
 
-Conventional precedence: `not` binds tightest, then `and`, then `or`; all looser
-than comparisons. Evaluation short-circuits (`and` skips its right side if the
-left is false; `or` skips if the left is true).
+Conventional precedence: `not` binds tightest, then `and`, then `or`; all looser than comparisons. Evaluation short-circuits (`and` skips its right side if the left is false; `or` skips if the left is true).
 
 ---
 
@@ -450,15 +383,13 @@ If x is 1, state "one".
 Otherwise, state "other".
 ```
 
-Comma after the condition → inline single statement. Colon after the condition →
-`Done.`-terminated block.
+Comma after the condition → inline single statement. Colon after the condition → `Done.`-terminated block.
 
 ---
 
 ### Conditional values — `when` / `otherwise`
 
-`If` chooses which **statement** runs. `when` chooses which **value** you get, in the middle of
-an expression:
+`If` chooses which **statement** runs. `when` chooses which **value** you get, in the middle of an expression:
 
 ```cufet-fragment
 Define label as "item" when count is 1, otherwise "items".
@@ -467,16 +398,14 @@ State "You have {count converted to text} {label}.".
 
 Both halves are required — a `when` always has an `otherwise`.
 
-The reason it exists is immutability. Without it, a value that depends on a condition has to be
-declared and then changed:
+The reason it exists is immutability. Without it, a value that depends on a condition has to be declared and then changed:
 
 ```cufet-fragment
 Define label as "items".
 If count is 1, the label becomes "item".
 ```
 
-That needs `label` to be mutable, so a `permanently` binding could not be conditionally
-initialised at all. With `when`, it can:
+That needs `label` to be mutable, so a `permanently` binding could not be conditionally initialised at all. With `when`, it can:
 
 ```cufet-fragment
 Define fee as 0 when member is true, otherwise 25 permanently.
@@ -496,15 +425,13 @@ Define name as "one" when count is 1,
     otherwise "many".
 ```
 
-**The two sides may be different types**, in which case the result is a union — the same thing
-`a catalogue with (1, "two")` does. If you would rather a mismatch be an error, say the type:
+**The two sides may be different types**, in which case the result is a union — the same thing `a catalogue with (1, "two")` does. If you would rather a mismatch be an error, say the type:
 
 ```cufet-fragment
 Define the number fee as 0 when member is true, otherwise 25.
 ```
 
-**One type and `void` make a voidable**, which is what `(number or void)` means written as a type,
-so `but void is` and `is not void` work on it:
+**One type and `void` make a voidable**, which is what `(number or void)` means written as a type, so `but void is` and `is not void` work on it:
 
 ```cufet
 Define flag as false.
@@ -517,8 +444,7 @@ State found but void is 0.
 
 Two or more types with `void` make a union with a void case, as `(number or text or void)` does.
 
-`when` binds looser than everything else, so it always picks between two whole values — including
-across `but void is`:
+`when` binds looser than everything else, so it always picks between two whole values — including across `but void is`:
 
 ```cufet-fragment
 Define parsed as raw but void is 0 when shout is true, otherwise 99.
@@ -535,8 +461,7 @@ Cast show on (label).
 
 ### `Judge` — handling every case
 
-`Judge` dispatches on what a value **is**. The subject and verb are stated once in
-the header, and each arm completes the sentence:
+`Judge` dispatches on what a value **is**. The subject and verb are stated once in the header, and each arm completes the sentence:
 
 ```cufet
 Define the (number or text or fact) thing as 42.
@@ -551,9 +476,7 @@ Done.
 a number
 ```
 
-**Coverage is total — by proof or by default.** A judgement over a **closed union**
-whose arms cover every case needs no `Otherwise`; the checker has proved nothing is
-left. Miss one and it refuses:
+**Coverage is total — by proof or by default.** A judgement over a **closed union** whose arms cover every case needs no `Otherwise`; the checker has proved nothing is left. Miss one and it refuses:
 
 ```cufet-fragment
 Judge thing, where it is:
@@ -565,8 +488,7 @@ Done.
 That doesn't work: this judgement does not cover fact.
 ```
 
-**A voidable is judged as the two cases it is** — the value, or `void` — so naming both
-covers it, and `it` is the plain value in the first arm:
+**A voidable is judged as the two cases it is** — the value, or `void` — so naming both covers it, and `it` is the plain value in the first arm:
 
 ```cufet
 Define count as the entry for "kale" in a map with ("carrots" : 12).
@@ -580,12 +502,9 @@ Done.
 none
 ```
 
-`void` names a type wherever one is expected: `x is a void` tests for absence, and
-`(number or void)` is the same type as `voidable number`.
+`void` names a type wherever one is expected: `x is a void` tests for absence, and `(number or void)` is the same type as `voidable number`.
 
-For anything else, `Otherwise` is required. Either way, control can never fall off
-the end of a `Judge`. It is the same discipline `voidable` applies to absence:
-handle it, or say what happens instead.
+For anything else, `Otherwise` is required. Either way, control can never fall off the end of a `Judge`. It is the same discipline `voidable` applies to absence: handle it, or say what happens instead.
 
 ```cufet-fragment
 Judge thing, where it is:
@@ -594,8 +513,7 @@ Judge thing, where it is:
 Done.
 ```
 
-**Arms** take the comma form for one statement, or a colon and `Done.` for a block —
-the same rule `If` follows. `or` groups cases:
+**Arms** take the comma form for one statement, or a colon and `Done.` for a block — the same rule `If` follows. `or` groups cases:
 
 ```cufet-fragment
 Judge thing, where it is:
@@ -604,8 +522,7 @@ Judge thing, where it is:
 Done.
 ```
 
-**`it` is the subject, narrowed.** Inside an arm, `it` is that arm's type, so
-type-specific operations are legal there:
+**`it` is the subject, narrowed.** Inside an arm, `it` is that arm's type, so type-specific operations are legal there:
 
 ```cufet-fragment
 Judge thing, where it is:
@@ -614,11 +531,7 @@ Judge thing, where it is:
 Done.
 ```
 
-A **grouped** arm narrows only as far as the group: an arm covering two cases cannot
-know which one arrived, so `it` is the sub-union it names and must be tested again
-before type-specific use.
-**An arm may name a value instead of a type.** The header says `where it is` once, and
-where a type arm completes it with a noun, a value arm completes it with a constant:
+A **grouped** arm narrows only as far as the group: an arm covering two cases cannot know which one arrived, so `it` is the sub-union it names and must be tested again before type-specific use. **An arm may name a value instead of a type.** The header says `where it is` once, and where a type arm completes it with a noun, a value arm completes it with a constant:
 
 ```cufet
 Define command as "bg".
@@ -633,21 +546,13 @@ Done.
 job control: bg
 ```
 
-`Otherwise` is **required** in a value judgement and always will be: no set of values
-can be proved to exhaust a type, so its coverage is defaulted rather than proved. That
-requirement is the whole of what a value judgement buys over a chain of `If`s — the
-chain can silently do nothing.
+`Otherwise` is **required** in a value judgement and always will be: no set of values can be proved to exhaust a type, so its coverage is defaulted rather than proved. That requirement is the whole of what a value judgement buys over a chain of `If`s — the chain can silently do nothing.
 
-A value arm **narrows nothing**. Matching `"cd"` says nothing about the subject's type
-that its declaration did not, so `it` reads at the subject's own type throughout the
-arm — which is why a value judgement works on a subject that is not a union at all.
+A value arm **narrows nothing**. Matching `"cd"` says nothing about the subject's type that its declaration did not, so `it` reads at the subject's own type throughout the arm — which is why a value judgement works on a subject that is not a union at all.
 
-**Arm values are literals**: a number (`-1` included), text, a bit pattern, `true` or
-`false`. Not an expression, and not an interpolated string. An arm is a case, and a
-case has to be a fixed thing you can read beside the others.
+**Arm values are literals**: a number (`-1` included), text, a bit pattern, `true` or `false`. Not an expression, and not an interpolated string. An arm is a case, and a case has to be a fixed thing you can read beside the others.
 
-**One kind of arm per judgement.** A judgement that dispatched on a tag *and* on a
-value would have to answer what happens when both could match, so mixing is refused:
+**One kind of arm per judgement.** A judgement that dispatched on a tag *and* on a value would have to answer what happens when both could match, so mixing is refused:
 
 ```cufet-refused
 Define command as "cd".
@@ -667,24 +572,15 @@ That doesn't work: this judgement mixes arms that match a type with arms that ma
 ```
 
 
-> **The subject may be an expression.** Narrowing is variable-level, so `If` cannot
-> narrow a value produced by an expression — you have to name it first. `Judge` names
-> it for you, as `it`:
+> **The subject may be an expression.** Narrowing is variable-level, so `If` cannot narrow a value produced by an expression — you have to name it first. `Judge` names it for you, as `it`:
 >
-> ```
-> Judge item 1 of words, where it is:
->     A text, state the length of it.
->     Otherwise, state "not text".
-> Done.
+> ``` Judge item 1 of words, where it is: A text, state the length of it. Otherwise, state "not text". Done.
 > ```
 
 - Nothing may follow the `Otherwise` arm; an arm after the default could never run.
-- An arm naming what an earlier arm already covers is legal and dead — the first match wins.
-  The linter reports it; it is not refused, because the meaning is not in doubt.
-- A judgement whose arms all return counts as returning, so it satisfies the
-  every-path-returns rule on its own.
-- There is no no-op statement, so an arm that means "ignore this case" still has to
-  say something.
+- An arm naming what an earlier arm already covers is legal and dead — the first match wins. The linter reports it; it is not refused, because the meaning is not in doubt.
+- A judgement whose arms all return counts as returning, so it satisfies the every-path-returns rule on its own.
+- There is no no-op statement, so an arm that means "ignore this case" still has to say something.
 
 ---
 
@@ -700,8 +596,7 @@ Repeat:
 until x is 10 or more.
 ```
 
-`Stop.` breaks the innermost loop. `Skip.` continues to the next iteration. Both
-are parse errors outside a loop.
+`Stop.` breaks the innermost loop. `Skip.` continues to the next iteration. Both are parse errors outside a loop.
 
 #### For-each loops
 
@@ -717,12 +612,9 @@ For each in scores, repeat:
 Done.
 ```
 
-The named form binds the current element to a new name. The bare-`it` form binds
-it to `it` — the innermost loop wins when nested. Both restore the previous
-binding when the loop exits.
+The named form binds the current element to a new name. The bare-`it` form binds it to `it` — the innermost loop wins when nested. Both restore the previous binding when the loop exits.
 
-Mutating the series being iterated is a runtime error. Use `While` with an index
-if you need to change the series as you go.
+Mutating the series being iterated is a runtime error. Use `While` with an index if you need to change the series as you go.
 
 `Stop.` and `Skip.` work the same as in `While` loops.
 
@@ -730,13 +622,9 @@ if you need to change the series as you go.
 
 ### Stashes (`Bury` and `unbury`)
 
-A function can stop in the middle of what it is doing, hand one value out, and
-carry on from that exact line when someone asks for the next one.
+A function can stop in the middle of what it is doing, hand one value out, and carry on from that exact line when someone asks for the next one.
 
-Burying is memory work, and a **rabbit** is the agent that does memory work — so
-you tell one to do it. `Have <rabbit> bury <value>.` is the pause; `unbury` is the
-wake-up. A burying function takes the rabbit as a parameter, and the caller hands
-one over:
+Burying is memory work, and a **rabbit** is the agent that does memory work — so you tell one to do it. `Have <rabbit> bury <value>.` is the pause; `unbury` is the wake-up. A burying function takes the rabbit as a parameter, and the caller hands one over:
 
 ```cufet
 Bind number to counting-up, given (the rabbit helper, the number first-value):
@@ -755,20 +643,11 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-There is no bare `Bury x.` A rabbit is always the one doing it, which is what
-puts the ownership of the buried state somewhere you can see rather than leaving
-it ambient.
+There is no bare `Bury x.` A rabbit is always the one doing it, which is what puts the ownership of the buried state somewhere you can see rather than leaving it ambient.
 
-**Nothing marks the declaration.** A function is stash-producing because its body
-*contains* a `bury` — the same way a body containing `return a failure` makes a
-function fallible. `cast` still means invoke; what changes is the result type.
-`Bind number to counting-up` therefore hands back a `stash of number`, and its
-declared type says what it **buries**, not what it returns. A burying function
-has no `Return`.
+**Nothing marks the declaration.** A function is stash-producing because its body *contains* a `bury` — the same way a body containing `return a failure` makes a function fallible. `cast` still means invoke; what changes is the result type. `Bind number to counting-up` therefore hands back a `stash of number`, and its declared type says what it **buries**, not what it returns. A burying function has no `Return`.
 
-`unbury <stash>` gives back a `voidable T`. When the function reaches its end
-there is nothing left to bury, so the answer is `void` — and stays `void` however
-often you ask.
+`unbury <stash>` gives back a `voidable T`. When the function reaches its end there is nothing left to bury, so the answer is `void` — and stays `void` however often you ask.
 
 ```cufet-fragment
 Define found as cast long-words-in on (hopper, a series with ("a", "rabbit")).
@@ -776,8 +655,7 @@ State unbury found.   // "rabbit"
 State unbury found.   // void — spent, and spent for good
 ```
 
-**`For each` takes them all.** Asking until the answer is `void` is what draining
-a stash always means, so the loop says it:
+**`For each` takes them all.** Asking until the answer is `void` is what draining a stash always means, so the loop says it:
 
 ```cufet-fragment
 Define found as cast long-words-in on (hopper, a series with ("a", "rabbit")).
@@ -786,10 +664,7 @@ For each word in found, repeat:
 Done.
 ```
 
-It is the same loop a series takes. `Stop` ends it, `Skip` moves on to the next
-value, and `word` holds a plain `text` rather than a `voidable text` — reaching
-the body is itself the proof that there was one. Over an endless stash the loop
-is endless too, so `Stop` is what ends it:
+It is the same loop a series takes. `Stop` ends it, `Skip` moves on to the next value, and `word` holds a plain `text` rather than a `voidable text` — reaching the body is itself the proof that there was one. Over an endless stash the loop is endless too, so `Stop` is what ends it:
 
 ```cufet-fragment
 Define counter as cast counting-up on (hopper, 3).
@@ -801,10 +676,7 @@ For each value in counter, repeat:
 Done.
 ```
 
-**A stash is not a collection.** A series *has* its items; a stash *produces*
-them, one resumption at a time. You cannot count one, index one, or read one
-twice. That is exactly what lets `counting-up` above be endless without being a
-mistake — nothing in it says how many, and the loop only runs when somebody asks.
+**A stash is not a collection.** A series *has* its items; a stash *produces* them, one resumption at a time. You cannot count one, index one, or read one twice. That is exactly what lets `counting-up` above be endless without being a mistake — nothing in it says how many, and the loop only runs when somebody asks.
 
 Every cast makes a separate stash with its own place to stand:
 
@@ -816,16 +688,11 @@ State unbury other-counter.   // 100
 State unbury one-counter.     // 2
 ```
 
-`If`, `While`, `Repeat until`, `For each` over a series or a stash, `Stop` and
-`Skip` all work inside a burying body, and every local survives a resumption — a
-loop counter, a for-each's place in its series, a series being built up item by
-item. A `For each` over a stash inside a burying body is **delegation**: one
-stash consumed while another is produced.
+`If`, `While`, `Repeat until`, `For each` over a series or a stash, `Stop` and `Skip` all work inside a burying body, and every local survives a resumption — a loop counter, a for-each's place in its series, a series being built up item by item. A `For each` over a stash inside a burying body is **delegation**: one stash consumed while another is produced.
 
 #### What a burying body cannot do yet
 
-Each of these is refused when the program is checked, so both backends refuse the
-same programs.
+Each of these is refused when the program is checked, so both backends refuse the same programs.
 
 | Shape | Why |
 | --- | --- |
@@ -839,8 +706,7 @@ same programs.
 
 #### A stash is a value
 
-A `stash of T` goes wherever a value goes: a local, a parameter, an element of a
-series. It is one thing you can hold, hand over, and keep a collection of.
+A `stash of T` goes wherever a value goes: a local, a parameter, an element of a series. It is one thing you can hold, hand over, and keep a collection of.
 
 ```cufet-fragment
 Bind void to take-three, given (the stash of number source, the text label):
@@ -865,8 +731,7 @@ For each one-stash in many, repeat: State unbury one-stash. Done.   // 1, 10
 For each one-stash in many, repeat: State unbury one-stash. Done.   // 2, 11
 ```
 
-That is also what lets one stash **delegate** to another — hold it and pass its
-values along:
+That is also what lets one stash **delegate** to another — hold it and pass its values along:
 
 ```
 Bind number to squares-and-cubes, given (the rabbit helper, the number upto):
@@ -890,9 +755,7 @@ Bind text to texts-only, given (the series of (number or text) things):
 Done.
 ```
 
-The arm's condition is carried into the resumed block and re-tested there. That is
-not a real branch — every local is restored before it runs, so the test gives the
-answer it gave the first time; it exists so the type is known again.
+The arm's condition is carried into the resumed block and re-tested there. That is not a real branch — every local is restored before it runs, so the test gives the answer it gave the first time; it exists so the type is known again.
 
 **A judgement works the same way, when each arm names one type:**
 
@@ -907,10 +770,7 @@ Bind number to sizes, given (the rabbit helper, the series of (number or text) i
 Done.
 ```
 
-`it` is kept the way any other local is kept, so the subject is evaluated once and
-restored on each resumption rather than worked out again. A **grouped** arm works
-the same way — it states itself as `it is a number or it is a fact` — and so does
-an `Otherwise`, which names whichever cases the arms left.
+`it` is kept the way any other local is kept, so the subject is evaluated once and restored on each resumption rather than worked out again. A **grouped** arm works the same way — it states itself as `it is a number or it is a fact` — and so does an `Otherwise`, which names whichever cases the arms left.
 
 A stash can also be an object **field**:
 
@@ -925,10 +785,7 @@ Done.
 
 #### A method can bury
 
-A method buries on exactly the same terms as a function: it takes a rabbit, its
-declared type is what it *buries*, and it has no `Return`. What it adds is
-`one` — the body reads its own object's fields, so the stash starts from
-whatever that instance holds:
+A method buries on exactly the same terms as a function: it takes a rabbit, its declared type is what it *buries*, and it has no `Return`. What it adds is `one` — the body reads its own object's fields, so the stash starts from whatever that instance holds:
 
 ```cufet
 Define object ticker with (the number first-beat):
@@ -952,9 +809,7 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-**The state belongs to the instance, not to the type.** Each cast makes its own
-stash over its own receiver, so two tickers keep two places and neither knows
-about the other — the same rule that already held for two casts of one function.
+**The state belongs to the instance, not to the type.** Each cast makes its own stash over its own receiver, so two tickers keep two places and neither knows about the other — the same rule that already held for two casts of one function.
 
 A method declared outside its object body with `unto` buries the same way:
 
@@ -968,16 +823,11 @@ Bind number to every-other unto ticker, given (the rabbit helper):
 Done.
 ```
 
-Two types may each have a burying method of the same name, and one of them may
-not bury at all — a method belongs to its type, and so does the answer to
-"does this bury".
+Two types may each have a burying method of the same name, and one of them may not bury at all — a method belongs to its type, and so does the answer to "does this bury".
 
 #### Where a stash is buried
 
-**A stash lives in the region whose rabbit buried it, and dies with that region.**
-The rabbit is not decoration: it is the agent doing the work, and the ground it
-stands on is the ground the buried state sits in. That is why a burying function
-takes one — the ownership arrives with the job.
+**A stash lives in the region whose rabbit buried it, and dies with that region.** The rabbit is not decoration: it is the agent doing the work, and the ground it stands on is the ground the buried state sits in. That is why a burying function takes one — the ownership arrives with the job.
 
 A stash is usable for as long as you stay in the burrow:
 
@@ -993,25 +843,15 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-**What you bury in a burrow does not come out of it.** Once the block ends the
-ground is gone, and so is everything buried in it — carrying the stash out and
-unburying it later is refused, the same way any closure over rabbit-scoped state
-is. That is not a restriction bolted onto stashes; it is what burying somewhere
-*means*.
+**What you bury in a burrow does not come out of it.** Once the block ends the ground is gone, and so is everything buried in it — carrying the stash out and unburying it later is refused, the same way any closure over rabbit-scoped state is. That is not a restriction bolted onto stashes; it is what burying somewhere *means*.
 
-The name is Turing's, and so is the lesson. He converted his savings to silver,
-buried it in the woods near Bletchley, and wrote down enciphered directions —
-then never found it again. The note travelled; the silver did not. A stash is the
-same shape: the value you hold is the note, and what it points at stays in the
-ground you buried it in.
+The name is Turing's, and so is the lesson. He converted his savings to silver, buried it in the woods near Bletchley, and wrote down enciphered directions — then never found it again. The note travelled; the silver did not. A stash is the same shape: the value you hold is the note, and what it points at stays in the ground you buried it in.
 
 ---
 
 ### Scope
 
-Every `Done.`-bounded block — an `If` arm, a `While` body, a `For each` body, a
-`Repeat...until` body, a function body — introduces a **lexical scope**. Names
-declared inside a block do not exist outside it.
+Every `Done.`-bounded block — an `If` arm, a `While` body, a `For each` body, a `Repeat...until` body, a function body — introduces a **lexical scope**. Names declared inside a block do not exist outside it.
 
 **Inner blocks can freely read and modify outer variables:**
 ```cufet
@@ -1043,11 +883,9 @@ Done.
 State x.                        → 10  (outer x is unchanged)
 ```
 
-Using `a shadow` when no outer name exists is also a static error — the keyword
-asserts that something is being deliberately overridden.
+Using `a shadow` when no outer name exists is also a static error — the keyword asserts that something is being deliberately overridden.
 
-**For-each iterators are block-local automatically**, even if the name matches an
-outer variable:
+**For-each iterators are block-local automatically**, even if the name matches an outer variable:
 ```cufet
 Define n as 7.
 For each n in range 1 to 3, repeat:
@@ -1056,8 +894,7 @@ Done.
 State n.                  → 7  (outer n is restored)
 ```
 
-**`Try` handler bindings** (`the failure`, `the exception`) are also block-local
-to their respective handler bodies.
+**`Try` handler bindings** (`the failure`, `the exception`) are also block-local to their respective handler bodies.
 
 ---
 
@@ -1065,34 +902,25 @@ to their respective handler bodies.
 
 ### Text
 
-`text` values are joined, measured, and built from other values with explicit
-constructs. `+` is **not** overloaded for concatenation — joining has its own
-word, and converting a non-text value to text is always explicit (no hidden
-coercion).
+`text` values are joined, measured, and built from other values with explicit constructs. `+` is **not** overloaded for concatenation — joining has its own word, and converting a non-text value to text is always explicit (no hidden coercion).
 
 **Joining** — `joined to`, left-associative, chains:
 ```cufet-fragment
 Define greeting as "hello" joined to " world".          → "hello world"
 Define full-name as first joined to " " joined to last.
 ```
-Both sides must be `text`. Joining a non-text value directly is a static type
-error — convert it first.
+Both sides must be `text`. Joining a non-text value directly is a static type error — convert it first.
 
 **Converting to text** — `converted to text`, a postfix construct:
 ```cufet-fragment
 State "Player: " joined to score converted to text.     → "Player: 95"
 Define label as score converted to text.                → "95"
 ```
-Works on numbers, facts and bits (all total — every one of them has a text form), and on a
-series of those or of texts, which converts to what `State` prints: `(1, 2, 3)`.
-It binds tighter than `joined to`, so `"x: " joined to n converted to text`
-reads as `"x: " joined to (n converted to text)`.
+Works on numbers, facts and bits (all total — every one of them has a text form), and on a series of those or of texts, which converts to what `State` prints: `(1, 2, 3)`. It binds tighter than `joined to`, so `"x: " joined to n converted to text` reads as `"x: " joined to (n converted to text)`.
 
-`converted to` binds to the **result** of a named access, not to its target — `the
-value of person converted to text` converts the value, as you would expect.
+`converted to` binds to the **result** of a named access, not to its target — `the value of person converted to text` converts the value, as you would expect.
 
-**Interpolation** — `{...}` inside a text literal, which is usually what you want instead of a
-chain of `joined to`:
+**Interpolation** — `{...}` inside a text literal, which is usually what you want instead of a chain of `joined to`:
 
 ```cufet
 Define who as "world".
@@ -1103,8 +931,7 @@ State "hello {who}, {count} times".
 hello world, 3 times
 ```
 
-A hole holds **any expression**, and its value is converted to text for you — so
-`{count}` needs no `converted to text`:
+A hole holds **any expression**, and its value is converted to text for you — so `{count}` needs no `converted to text`:
 
 ```cufet-fragment
 Define pat as 0x0F.
@@ -1123,9 +950,7 @@ a pattern: 0x0F
 even a nested string: inner world
 ```
 
-**A hole takes what `converted to text` takes** — text, number, fact, bits, a chase, and a series
-of texts, numbers, facts or bits (or a series of such series). A series becomes the text `State`
-prints for it:
+**A hole takes what `converted to text` takes** — text, number, fact, bits, a chase, and a series of texts, numbers, facts or bits (or a series of such series). A series becomes the text `State` prints for it:
 
 ```cufet
 Define parts as a series of text with ("a", "b").
@@ -1152,16 +977,14 @@ Here on line 3, you're trying to convert a series of (number or text) values to 
 Only numbers, facts, bits, a chase and a series of numbers, facts, texts or bits can be converted to text.
 ```
 
-Write `\{` and `\}` for a literal brace. An empty hole is a parse error rather than an empty
-string, because it is always a mistake:
+Write `\{` and `\}` for a literal brace. An empty hole is a parse error rather than an empty string, because it is always a mistake:
 
 ```
 State "literal braces: \{not a hole\}".     → literal braces: {not a hole}
 State "nothing here: {}".                   ← PARSE ERROR: nothing between the braces
 ```
 
-Interpolation is part of the text literal, so it works **anywhere a text expression does** — not
-just in `State`:
+Interpolation is part of the text literal, so it works **anywhere a text expression does** — not just in `State`:
 
 ```cufet-fragment
 Define greeting as "hello {who}".
@@ -1183,14 +1006,9 @@ C:\Users\me
 ^\d{3}-\d{4}$
 ```
 
-`"` and `{` are the two characters a quoted literal cannot hold plainly, and they are exactly
-what JSON, regular expressions, Windows paths and Cufet samples inside documentation are made
-of. Inside `<<...>>` both are ordinary characters: there are no escape sequences, so a lone `\`
-is a backslash and `\q` is two characters rather than an error, and there are no interpolation
-holes, so `{x}` is three characters.
+`"` and `{` are the two characters a quoted literal cannot hold plainly, and they are exactly what JSON, regular expressions, Windows paths and Cufet samples inside documentation are made of. Inside `<<...>>` both are ordinary characters: there are no escape sequences, so a lone `\` is a backslash and `\q` is two characters rather than an error, and there are no interpolation holes, so `{x}` is three characters.
 
-The two forms produce the same kind of value. A verbatim literal is a **spelling**, not a type —
-everything in this section works on one:
+The two forms produce the same kind of value. A verbatim literal is a **spelling**, not a type — everything in this section works on one:
 
 ```cufet
 Define pattern as <<\d+>>.
@@ -1199,8 +1017,7 @@ State pattern joined to <<$>>.             → \d+$
 If pattern contains <<\d>>, state "yes".   → yes
 ```
 
-**Nesting** is depth-counted over `<<` and `>>`, the way block comments count `/*` and `*/` — so
-text that already contains the delimiters can still be wrapped:
+**Nesting** is depth-counted over `<<` and `>>`, the way block comments count `/*` and `*/` — so text that already contains the delimiters can still be wrapped:
 
 ```
 State <<a <<b>> c>>.        → a <<b>> c
@@ -1213,23 +1030,16 @@ Define note as <<first line
 second line>>.
 ```
 
-**A line break in a literal is one `\n`**, whatever the file is stored as. A CRLF source does
-not put a `\r` into the text, so `the length of note` is 22 on every platform and a checkout
-that converts line endings cannot change what a program means. This holds for `"..."` too; it
-matters most here, because a multi-line verbatim literal is the ordinary way to write one and
-there is no escape to reach for instead. (A *lone* `\r` is not a line break, so one you write
-deliberately is kept.)
+**A line break in a literal is one `\n`**, whatever the file is stored as. A CRLF source does not put a `\r` into the text, so `the length of note` is 22 on every platform and a checkout that converts line endings cannot change what a program means. This holds for `"..."` too; it matters most here, because a multi-line verbatim literal is the ordinary way to write one and there is no escape to reach for instead. (A *lone* `\r` is not a line break, so one you write deliberately is kept.)
 
-**There is no interpolation here** — that is the trade for total literalness. Join instead,
-which is what a hole is doing anyway:
+**There is no interpolation here** — that is the trade for total literalness. Join instead, which is what a hole is doing anyway:
 
 ```cufet
 Define name as "world".
 State <<hello, >> joined to name.          → hello, world
 ```
 
-> **Text ending in `>` needs the quoted form.** `<<a>>>` closes at the first `>>` and leaves a
-> stray `>` behind. Write `"a>"`. This is the one thing the verbatim form cannot spell.
+> **Text ending in `>` needs the quoted form.** `<<a>>>` closes at the first `>>` and leaves a stray `>` behind. Write `"a>"`. This is the one thing the verbatim form cannot spell.
 
 **Length** — `the length of`, the character count:
 ```cufet-fragment
@@ -1237,24 +1047,14 @@ State the length of "hello".          → 5
 Define n as the length of greeting.
 ```
 
-> **What a character is.** Every position and count in this section — `the length of`,
-> `the characters from`, `the first`/`last N characters`, and the position `the position of`
-> returns — is measured in **Unicode code points**, identically on both backends.
+> **What a character is.** Every position and count in this section — `the length of`, `the characters from`, `the first`/`last N characters`, and the position `the position of` returns — is measured in **Unicode code points**, identically on both backends.
 >
+> ``` State the length of "héllo".         → 5   (six bytes) State the length of "👍".            → 1   (four bytes) State the characters from 2 to 2 of "héllo".   → "é"
 > ```
-> State the length of "héllo".         → 5   (six bytes)
-> State the length of "👍".            → 1   (four bytes)
-> State the characters from 2 to 2 of "héllo".   → "é"
-> ```
->
-> A code point is not always what a reader would call one character. `é` can be written as the
-> single code point U+00E9 or as `e` followed by a combining acute, and the second counts as
-> **2**. Counting what the eye sees means grapheme clusters, which need the Unicode segmentation
-> tables — a dependency Cufet will not carry into the C it emits. Code points are exact,
-> implementable the same way on both sides, and stated here rather than left to be discovered.
+> A code point is not always what a reader would call one character. `é` can be written as the single code point U+00E9 or as `e` followed by a combining acute, and the second counts as
+> **2**. Counting what the eye sees means grapheme clusters, which need the Unicode segmentation tables — a dependency Cufet will not carry into the C it emits. Code points are exact, implementable the same way on both sides, and stated here rather than left to be discovered.
 
-**Converting text to number** — `converted to number`, the inverse of
-`converted to text`:
+**Converting text to number** — `converted to number`, the inverse of `converted to text`:
 ```cufet
 Define n as "42" converted to number.
 If n is not void, state n.                                 → 42
@@ -1262,16 +1062,7 @@ Otherwise, state "not a number".
 
 Define m as ("abc" converted to number but void is 0).     → 0
 ```
-Parsing can fail (`"hello"` isn't a number), so the result is **always a
-`voidable number`** — even for an obviously valid literal — and must be
-handled like any other voidable (see
-[Voidable values](#voidable-values-void-and-voidable-t)). A text value
-converts successfully iff, after trimming surrounding whitespace, it looks
-like a Cufet number literal: digits, an optional leading `-`, an optional
-decimal point followed by more digits, and an optional exponent (`"1.24E-16"`).
-Anything else — empty text, trailing garbage, multiple decimal points — produces
-`void`, and so does a number too large to hold. Too many places **rounds**, exactly as
-the same literal would (see [Arithmetic](#arithmetic)).
+Parsing can fail (`"hello"` isn't a number), so the result is **always a `voidable number`** — even for an obviously valid literal — and must be handled like any other voidable (see [Voidable values](#voidable-values-void-and-voidable-t)). A text value converts successfully iff, after trimming surrounding whitespace, it looks like a Cufet number literal: digits, an optional leading `-`, an optional decimal point followed by more digits, and an optional exponent (`"1.24E-16"`). Anything else — empty text, trailing garbage, multiple decimal points — produces `void`, and so does a number too large to hold. Too many places **rounds**, exactly as the same literal would (see [Arithmetic](#arithmetic)).
 
 **Splitting** — `split by`, into a `series of text`:
 ```cufet
@@ -1280,10 +1071,7 @@ For each part in "alice:bob:carol" split by ":", repeat:
     State part.
 Done.
 ```
-The delimiter not being found yields a single-element series holding the
-whole text. Consecutive, leading, and trailing delimiters produce empty
-strings — `"a,,b" split by ","` is `"a", "", "b"`; nothing is collapsed or
-trimmed automatically. An empty delimiter (`split by ""`) is a static error.
+The delimiter not being found yields a single-element series holding the whole text. Consecutive, leading, and trailing delimiters produce empty strings — `"a,,b" split by ","` is `"a", "", "b"`; nothing is collapsed or trimmed automatically. An empty delimiter (`split by ""`) is a static error.
 
 **Contains** — `contains`, a boolean substring test:
 ```cufet
@@ -1295,59 +1083,43 @@ If "hello" contains "ell", state "yes".          → yes
 If "notes.cufe" ends with ".cufe", state "a Cufet file".     → a Cufet file
 If "error: no file" starts with "warn", state "a warning".   → (nothing)
 ```
-Both sides are text, and the answer is a `fact`. Neither word is reserved — each is recognised only
-between a text and `with` — so `starts` and `ends` stay free as names.
+Both sides are text, and the answer is a `fact`. Neither word is reserved — each is recognised only between a text and `with` — so `starts` and `ends` stay free as names.
 
 **Finding a position** — `the position of <substring> in <text>`, **1-based**:
 ```cufet
 Define p as the position of "ell" in "hello".    → 2
 Define q as the position of "z" in "hello".      → void
 ```
-Returns the position of the first occurrence, or `void` if the substring
-isn't present — a `voidable number`, handled like any other voidable. There's
-no `-1` sentinel.
+Returns the position of the first occurrence, or `void` if the substring isn't present — a `voidable number`, handled like any other voidable. There's no `-1` sentinel.
 
-**Substring** — four forms, all **1-based and inclusive**, always returning
-plain `text` (never voidable — out-of-range inputs clamp rather than fail):
+**Substring** — four forms, all **1-based and inclusive**, always returning plain `text` (never voidable — out-of-range inputs clamp rather than fail):
 ```cufet
 State the characters from 2 to 4 of "hello".         → "ell"
 State the first 3 characters of "hello".             → "hel"
 State the last 3 characters of "hello".              → "llo"
 State the characters from 3 to the end of "hello".   → "llo"
 ```
-- An out-of-range-high end **clamps** to what's there: `the characters from 2
-  to 99 of "hi"` is `"i"`; `the first 10 characters of "hi"` is `"hi"`.
-- A backwards range (end before start) yields `""`: `the characters from 5 to
-  2 of "hello"` is `""`.
+- An out-of-range-high end **clamps** to what's there: `the characters from 2 to 99 of "hi"` is `"i"`; `the first 10 characters of "hi"` is `"hi"`.
+- A backwards range (end before start) yields `""`: `the characters from 5 to 2 of "hello"` is `""`.
 - `the first 0` / `the last 0` characters is `""`.
-- A character position of `0` or negative is a **mistake, not a clamp case**
-  — it's a static error when the position is a literal, and a runtime error
-  otherwise: `the characters from 0 to 3 of "hello"` doesn't run.
-- `the first of <series>` / `the last of <series>` (series ordinal access,
-  see [Series](#series-collections)) are unaffected — the count-and-`characters`
-  shape is what distinguishes the substring forms from plain ordinal access.
+- A character position of `0` or negative is a **mistake, not a clamp case** — it's a static error when the position is a literal, and a runtime error otherwise: `the characters from 0 to 3 of "hello"` doesn't run.
+- `the first of <series>` / `the last of <series>` (series ordinal access, see [Series](#series-collections)) are unaffected — the count-and-`characters` shape is what distinguishes the substring forms from plain ordinal access.
 
 **Replacing** — `replace <old> with <new> in <text>`, all occurrences:
 ```cufet
 Define s as replace "a" with "X" in "banana".         → "bXnXnX"
 Define deleted as replace "x" with "" in "axbx".       → "ab"
 ```
-An empty replacement is deletion (allowed). An empty target is a static error
-(when literal — runtime otherwise) — replacing "nothing" is meaningless, the
-same reasoning as `split by`'s empty-delimiter error. If `<old>` isn't found,
-the text comes back unchanged.
+An empty replacement is deletion (allowed). An empty target is a static error (when literal — runtime otherwise) — replacing "nothing" is meaningless, the same reasoning as `split by`'s empty-delimiter error. If `<old>` isn't found, the text comes back unchanged.
 
 **Case** — `<text> in uppercase` / `<text> in lowercase`:
 ```cufet
 State "Hello" in uppercase.        → "HELLO"
 State "Hello" in lowercase.        → "hello"
 ```
-Uses default (invariant, culture-independent) case rules — not locale-sensitive.
-Only upper/lower this slice; title-case and capitalize-first are deferred.
+Uses default (invariant, culture-independent) case rules — not locale-sensitive. Only upper/lower this slice; title-case and capitalize-first are deferred.
 
-**Full Unicode, identically on both backends.** `"héllo" in uppercase` is `HÉLLO`
-whether you run it or build it: the two read one shared case table rather than
-casing text twice, so they cannot drift apart.
+**Full Unicode, identically on both backends.** `"héllo" in uppercase` is `HÉLLO` whether you run it or build it: the two read one shared case table rather than casing text twice, so they cannot drift apart.
 
 ```cufet
 State "héllo" in uppercase.        → "HÉLLO"
@@ -1355,28 +1127,17 @@ State "ΑΣΠΙΔΑ" in lowercase.       → "ασπιδα"
 State "МОСКВА" in lowercase.       → "москва"
 ```
 
-> **Note:** this is *simple* case mapping, so one character always becomes exactly
-> one character. `ß` stays `ß` rather than becoming `SS`, the `ﬁ` ligature stays
-> whole, and the Turkish pair `ı`/`İ` is left alone rather than mapped to a side —
-> invariant rules do not pick a locale, and picking one silently would be worse
-> than leaving them. Casing never changes a text's length in characters.
+> **Note:** this is *simple* case mapping, so one character always becomes exactly one character. `ß` stays `ß` rather than becoming `SS`, the `ﬁ` ligature stays whole, and the Turkish pair `ı`/`İ` is left alone rather than mapped to a side — invariant rules do not pick a locale, and picking one silently would be worse than leaving them. Casing never changes a text's length in characters.
 
-> **Note:** `in` is also used to lead the map-set statement (`In ages, the
-> entry for "x" becomes ...`) and inside `the entry for K in M` / `the
-> position of S in T`. These don't collide: `in uppercase`/`in lowercase` is
-> only recognized when `in` is immediately followed by `uppercase` or
-> `lowercase` — any other use of `in` is left alone for its own construct.
+> **Note:** `in` is also used to lead the map-set statement (`In ages, the entry for "x" becomes ...`) and inside `the entry for K in M` / `the position of S in T`. These don't collide: `in uppercase`/`in lowercase` is only recognized when `in` is immediately followed by `uppercase` or `lowercase` — any other use of `in` is left alone for its own construct.
 
 **Trimming** — `<text> trimmed`, strips whitespace from both ends:
 ```cufet
 State " hello " trimmed.           → "hello"
 ```
-Standard whitespace (spaces, tabs, newlines). Leading-only / trailing-only
-trim are deferred. All three operations chain naturally with each other and
-with the rest of the text toolkit: `raw trimmed in uppercase`.
+Standard whitespace (spaces, tabs, newlines). Leading-only / trailing-only trim are deferred. All three operations chain naturally with each other and with the rest of the text toolkit: `raw trimmed in uppercase`.
 
-**Character classes** — `<text> is alphabetic`, `<text> is numeric`,
-`<text> is whitespace`, and each with `is not`:
+**Character classes** — `<text> is alphabetic`, `<text> is numeric`, `<text> is whitespace`, and each with `is not`:
 ```cufet
 State "héllo" is alphabetic.       → true
 State "2026" is numeric.           → true
@@ -1384,13 +1145,7 @@ State " \t" is whitespace.         → true
 State "a1" is alphabetic.          → false
 State "" is numeric.               → false
 ```
-Every character has to be in the class, and empty text is in none. Alphabetic
-means any letter, in any script, whether or not it has a case: `中` and `ب` are
-alphabetic. Numeric means decimal **digits** only, in any script (`٣` is one),
-so `½` and `Ⅻ` are not numeric. Neither are `"1.5"` or `"-3"`: `is numeric`
-asks about characters, not whether the text converts to a number. Whitespace is
-the 25 characters Cufet itself skips as space. Both backends read one table, as
-casing does, so the answers cannot differ between running and building.
+Every character has to be in the class, and empty text is in none. Alphabetic means any letter, in any script, whether or not it has a case: `中` and `ب` are alphabetic. Numeric means decimal **digits** only, in any script (`٣` is one), so `½` and `Ⅻ` are not numeric. Neither are `"1.5"` or `"-3"`: `is numeric` asks about characters, not whether the text converts to a number. Whitespace is the 25 characters Cufet itself skips as space. Both backends read one table, as casing does, so the answers cannot differ between running and building.
 
 `alphabetic`, `numeric` and `whitespace` are reserved words.
 
@@ -1399,16 +1154,13 @@ casing does, so the answers cannot differ between running and building.
 State the code point of "A".       → 65
 State the code point of "é".       → 233
 ```
-The text must be exactly one character. Anything else stops the program when it
-runs, since a text's length is usually not known before then. `code` and `point`
-are not reserved.
+The text must be exactly one character. Anything else stops the program when it runs, since a text's length is usually not known before then. `code` and `point` are not reserved.
 
 ---
 
 ### Range
 
-`range <start> to <end>` produces a materialized `series of number` — sugar so
-you don't build a numeric span by hand:
+`range <start> to <end>` produces a materialized `series of number` — sugar so you don't build a numeric span by hand:
 ```cufet
 For each n in range 1 to 100, repeat:
     State n.
@@ -1420,16 +1172,11 @@ Define hundred as range 1 to 100.        ← also valid anywhere a series goes
 - `start` and `end` are number expressions (`range 1 to n`, `range x to y`).
 - The optional article reads naturally: `range 1 to 100` or `the range 1 to 100`.
 - **Inclusive of both ends:** `range 1 to 100` is `1, 2, ..., 100`.
-- **Ends below where it starts ⇒ EMPTY.** `range 1 to 0` is nothing at all, which is what makes
-  `For each n in range 1 to the number of xs` right over an empty series. It does not turn
-  around.
-- **To count down, say so:** `range 1 to 100 sorted in reverse`. A range is an ordinary series,
-  so the operation that reverses one is the operation that reverses this.
+- **Ends below where it starts ⇒ EMPTY.** `range 1 to 0` is nothing at all, which is what makes `For each n in range 1 to the number of xs` right over an empty series. It does not turn around.
+- **To count down, say so:** `range 1 to 100 sorted in reverse`. A range is an ordinary series, so the operation that reverses one is the operation that reverses this.
 - It produces an ordinary `series of number` — all series operations apply.
 
-**A range written with both ends as literals, ending below where it starts, is refused** rather
-than quietly being empty, because it can only be a mistake. Where the fault is visible on the line,
-it is said out loud.
+**A range written with both ends as literals, ending below where it starts, is refused** rather than quietly being empty, because it can only be a mistake. Where the fault is visible on the line, it is said out loud.
 
 ```cufet-refused
 For each n in range 100 to 1, repeat:
@@ -1439,12 +1186,9 @@ Done.
 
 With a computed end there is nothing to refuse and empty is simply the right answer.
 
-A range plus `for each` covers everything a C-style counter loop would: there is
-no separate index-loop construct, because iterating `range 1 to 100` is the same
-thing, read more plainly.
+A range plus `for each` covers everything a C-style counter loop would: there is no separate index-loop construct, because iterating `range 1 to 100` is the same thing, read more plainly.
 
-**Stepping** — `counting by <step>` is an optional suffix that changes the
-increment from the default of 1:
+**Stepping** — `counting by <step>` is an optional suffix that changes the increment from the default of 1:
 ```cufet
 For each n in range 1 to 10 counting by 2, repeat:
     State n.
@@ -1452,16 +1196,10 @@ Done.                                       → 1, 3, 5, 7, 9
 
 Define halves as range 1 to 2 counting by 0.5.    → 1, 1.5, 2
 ```
-- `step` is always a **positive magnitude**, and a range only ever counts up — the step says by how
-  much, never which way. `range 10 to 1 counting by 2` is not a descent; with both ends written out
-  like that it is **refused**, on the same rule as a range without a step. Reverse the result to go
-  down.
-- The end is included only if the step lands on it exactly; otherwise the
-  range stops at the last value still within bounds (`range 1 to 10 counting
-  by 2` is `1, 3, 5, 7, 9` — `10` is skipped).
+- `step` is always a **positive magnitude**, and a range only ever counts up — the step says by how much, never which way. `range 10 to 1 counting by 2` is not a descent; with both ends written out like that it is **refused**, on the same rule as a range without a step. Reverse the result to go down.
+- The end is included only if the step lands on it exactly; otherwise the range stops at the last value still within bounds (`range 1 to 10 counting by 2` is `1, 3, 5, 7, 9` — `10` is skipped).
 - Decimal steps are allowed.
-- `counting by 0` or a negative step is an error — caught statically when the
-  step is a literal, at runtime otherwise.
+- `counting by 0` or a negative step is an error — caught statically when the step is a literal, at runtime otherwise.
 
 ---
 
@@ -1476,8 +1214,7 @@ Define tags   as a series of text with ("sedan", "coupe").
 Define ops    as a series of number function given (the number) with (double, triple).
 ```
 
-The element type is inferred from the elements, or declared explicitly after
-`of`. Empty series require an explicit annotation:
+The element type is inferred from the elements, or declared explicitly after `of`. Empty series require an explicit annotation:
 ```cufet
 Define log    as a series of text.
 Define counts as a series of numbers.
@@ -1519,21 +1256,17 @@ The last of scores becomes 100.
 
 Out-of-bounds access or assignment produces a readable runtime error.
 
-Series are **reference-typed** — assigning a series to a new name shares it
-(in contrast to records and objects, which copy). See
-[Type system](#type-system).
+Series are **reference-typed** — assigning a series to a new name shares it (in contrast to records and objects, which copy). See [Type system](#type-system).
 
 ---
 
 ### Maps
 
-Typed key→value collections. Keys are one type, values are one type
-(homogeneous, like series).
+Typed key→value collections. Keys are one type, values are one type (homogeneous, like series).
 
 **Type:** `a map from text to number` — text keys, number values.
 
-**What may be a key: a scalar, or a record of keys.** A number, text, a fact, a bit pattern, or a
-record whose every field is one of those — nested as deep as you like:
+**What may be a key: a scalar, or a record of keys.** A number, text, a fact, a bit pattern, or a record whose every field is one of those — nested as deep as you like:
 
 ```cufet
 Define grid as a map from record like (number, number) to text.
@@ -1541,23 +1274,13 @@ In grid, the entry for a record with (2, 3) becomes "treasure".
 State the entry for a record with (2, 3) in grid.               ← "treasure"
 ```
 
-**A record SHAPE is written `record like (…)`** wherever it stands on its own — as a map key here,
-and as a series element in `a series of records like (number, number)`. The `with` form is the one
-that carries a name, and the name sits between the word and the shape: `given (the record spot
-with (number, number))` declares a parameter called `spot`.
+**A record SHAPE is written `record like (…)`** wherever it stands on its own — as a map key here, and as a series element in `a series of records like (number, number)`. The `with` form is the one that carries a name, and the name sits between the word and the shape: `given (the record spot with (number, number))` declares a parameter called `spot`.
 
-**A wrapper is a key when what it holds is** — `a map from voidable number to text`, or
-`a map from (number or text) to text` for a table that files `7` and `"seven"` alike. An *open*
-union is refused, because it can hold anything ever widened into it.
+**A wrapper is a key when what it holds is** — `a map from voidable number to text`, or `a map from (number or text) to text` for a table that files `7` and `"seven"` alike. An *open* union is refused, because it can hold anything ever widened into it.
 
-A record key is compared by its CONTENTS, so a second record holding the same values finds the
-same entry. Named fields compare regardless of the order they were written, exactly as they do
-under `is`, and a bit pattern compares on its value alone — `0xA` finds what `0b1010` stored.
+A record key is compared by its CONTENTS, so a second record holding the same values finds the same entry. Named fields compare regardless of the order they were written, exactly as they do under `is`, and a bit pattern compares on its value alone — `0xA` finds what `0b1010` stored.
 
-A series, a map, an object or a matrix cannot be a key, and a record holding one cannot either.
-The reason is that they can be **changed** after they are used as a key: alter the key and the
-entry it was stored under can never be found again. A record is safe for the mirrored reason —
-it is deep-copied when bound, so the map holds a key nobody else can reach in and alter.
+A series, a map, an object or a matrix cannot be a key, and a record holding one cannot either. The reason is that they can be **changed** after they are used as a key: alter the key and the entry it was stored under can never be found again. A record is safe for the mirrored reason — it is deep-copied when bound, so the map holds a key nobody else can reach in and alter.
 
 **Construction:**
 ```cufet-fragment
@@ -1567,10 +1290,7 @@ Define ages as a map from text to number with ().               ← empty, typed
 Define ages as a map from text to number.                       ← empty, typed (same thing)
 ```
 
-**`with ()` is optional once the types are given** — `a map from text to number.` is an empty
-typed map, matching `a series of number.`, `a catalogue of (number or text).` and
-`an atlas from text to (number or text).`, which all read the same way. The clause is still
-required without the types, since `a map.` has neither an annotation nor entries to infer from.
+**`with ()` is optional once the types are given** — `a map from text to number.` is an empty typed map, matching `a series of number.`, `a catalogue of (number or text).` and `an atlas from text to (number or text).`, which all read the same way. The clause is still required without the types, since `a map.` has neither an annotation nor entries to infer from.
 
 **Lookup** — returns `voidable <value-type>` (the key might be absent):
 ```cufet-fragment
@@ -1579,9 +1299,7 @@ Define alice-age as from ages, the entry for "alice".     ← the same, map firs
 Define alice-age as from the map ages, the entry for "alice".   ← explicit form
 ```
 
-The map-first form exists because **writing** a map has only that order — `In ages, the entry
-for "alice" becomes 30` — so without it, reading and writing the same entry would have to be
-said in opposite orders.
+The map-first form exists because **writing** a map has only that order — `In ages, the entry for "alice" becomes 30` — so without it, reading and writing the same entry would have to be said in opposite orders.
 
 **Set** — reuses `becomes`:
 ```cufet-fragment
@@ -1593,10 +1311,7 @@ In ages, the entry for "alice" becomes 30.
 If ages has a key for "alice", ...        ← is the key present?
 If ages has an entry for "alice", ...     ← is the value present (not void)?
 ```
-For an ordinary (non-voidable-valued) map these two questions always agree —
-a present key always has a real value. They only **diverge** for a
-voidable-valued map (below): a key can be present with its value explicitly
-`void`, in which case `has a key` is true but `has an entry` is false.
+For an ordinary (non-voidable-valued) map these two questions always agree — a present key always has a real value. They only **diverge** for a voidable-valued map (below): a key can be present with its value explicitly `void`, in which case `has a key` is true but `has an entry` is false.
 
 **Voidable values** — a map's value type can itself be `voidable V`:
 ```cufet
@@ -1604,11 +1319,7 @@ Define ages as a map from text to voidable number.
 In ages, the entry for "alice" becomes 30.
 In ages, the entry for "bob" becomes void.        ← present key, void value
 ```
-A lookup always returns a **flat** `voidable V` — never `voidable voidable V`,
-even when the map's value type is already voidable. The nesting never surfaces.
-This means a plain lookup can't tell "key absent" apart from "key present, but
-its value is void" — both produce `void`. Distinguish them with `has a key`
-first, then look up:
+A lookup always returns a **flat** `voidable V` — never `voidable voidable V`, even when the map's value type is already voidable. The nesting never surfaces. This means a plain lookup can't tell "key absent" apart from "key present, but its value is void" — both produce `void`. Distinguish them with `has a key` first, then look up:
 ```cufet-fragment
 If ages has a key for "bob":
     Define v as the entry for "bob" in ages.      ← void here means the VALUE is void
@@ -1624,8 +1335,7 @@ Remove "alice" from ages.
 State the size of ages.
 ```
 
-**Iterate** — each element is a `mapping` (a key/value pair), in the order the keys were first
-added. Removing a key leaves the rest in that order, and a key added afterwards goes on the end:
+**Iterate** — each element is a `mapping` (a key/value pair), in the order the keys were first added. Removing a key leaves the rest in that order, and a key added afterwards goes on the end:
 ```cufet-fragment
 For each mapping in ages, repeat:
     State the key of mapping.
@@ -1653,8 +1363,7 @@ Anonymous, structural data — a bundle of named and/or positional fields.
 Define car as a record with ("hatchback", the make "Honda", the year 2021).
 ```
 
-Positional fields come first; named fields (introduced with `the`) come after.
-Mixed order is a parse error.
+Positional fields come first; named fields (introduced with `the`) come after. Mixed order is a parse error.
 
 **Access:**
 ```cufet-fragment
@@ -1672,8 +1381,7 @@ The item n of car becomes "coupe".        ← positional parametric
 
 Assigning the wrong type to a field is a static type error.
 
-**Value semantics** — records copy on assignment; assigning a record to a new
-name gives an independent copy:
+**Value semantics** — records copy on assignment; assigning a record to a new name gives an independent copy:
 ```cufet-fragment
 Define truck as car.
 The make of truck becomes "Toyota".
@@ -1697,25 +1405,20 @@ Define inventory as a series of records like (the text make, the number year).
 Insert a record with (the make "Ford", the year 2022) into inventory.
 ```
 
-A populated series infers its shape from the elements; an empty one declares it
-with `like (...)`. Either way, `add` enforces structural matching.
+A populated series infers its shape from the elements; an empty one declares it with `like (...)`. Either way, `add` enforces structural matching.
 
 **Equality:**
 ```cufet-fragment
 If rec1 is rec2, state "same".
 If rec1 is not rec2, state "different".
 ```
-Two records are equal iff all fields are equal by value — named fields compared
-by name (order-insensitive), positional fields by position, recursively. Records
-of different shapes can't be compared: a compile-time type error. Series fields
-compare element-wise by value.
+Two records are equal iff all fields are equal by value — named fields compared by name (order-insensitive), positional fields by position, recursively. Records of different shapes can't be compared: a compile-time type error. Series fields compare element-wise by value.
 
 ---
 
 ### Catalogue and atlas (heterogeneous collections)
 
-**Catalogue** — a series whose element type is a union: a heterogeneous ordered
-collection.
+**Catalogue** — a series whose element type is a union: a heterogeneous ordered collection.
 
 **Closed** (declared element type):
 ```cufet-fragment
@@ -1736,15 +1439,11 @@ If first is a number, state first + 1.
 Otherwise, state the length of first.
 ```
 
-All series operations apply: ordinal and parametric access, `the number of`,
-`Insert`, `Remove`, `for each`, element assignment. `Insert` enforces the declared
-union type; inserting a value outside the union is a static type error. Open
-catalogues accept any element type.
+All series operations apply: ordinal and parametric access, `the number of`, `Insert`, `Remove`, `for each`, element assignment. `Insert` enforces the declared union type; inserting a value outside the union is a static type error. Open catalogues accept any element type.
 
 ---
 
-**Atlas** — a map whose value type is a union: a heterogeneous typed key→value
-collection.
+**Atlas** — a map whose value type is a union: a heterogeneous typed key→value collection.
 
 **Closed** (declared key and value type):
 ```cufet-fragment
@@ -1757,8 +1456,7 @@ Define mp as an atlas from text to (number or text).    ← empty
 Define mp as an atlas.
 ```
 
-Retrieval yields a `voidable (union)` — the absent-key void composes with the
-union value type:
+Retrieval yields a `voidable (union)` — the absent-key void composes with the union value type:
 ```cufet-fragment
 Define v as the entry for "x" in mp.   ← voidable (number or text)
 If v is not void:
@@ -1766,9 +1464,7 @@ If v is not void:
 Done.
 ```
 
-All map operations apply: `the entry for`, `has a key for`, `has an entry for`,
-`becomes` (set), `Remove`, `the size of`, `for each`. Value-setting enforces the
-declared union type; the open atlas accepts any value.
+All map operations apply: `the entry for`, `has a key for`, `has an entry for`, `becomes` (set), `Remove`, `the size of`, `for each`. Value-setting enforces the declared union type; the open atlas accepts any value.
 
 Atlases are **reference-typed** (like maps and series).
 
@@ -1776,12 +1472,9 @@ Atlases are **reference-typed** (like maps and series).
 
 ### Bit patterns (`bits`)
 
-A **bit pattern is not a quantity.** `0o755` is three permission triples, not "seven hundred and
-fifty-five"; `0xFF` is eight set bits, not a count of anything. So `bits` is its own type, and
-bitwise operations live here and are absent from `number`.
+A **bit pattern is not a quantity.** `0o755` is three permission triples, not "seven hundred and fifty-five"; `0xFF` is eight set bits, not a count of anything. So `bits` is its own type, and bitwise operations live here and are absent from `number`.
 
-That separation is what keeps the type well behaved. In a language where you flip the bits of a
-decimal, `not 5` comes out as `-6` — correct, and baffling. Here it cannot be written at all.
+That separation is what keeps the type well behaved. In a language where you flip the bits of a decimal, `not 5` comes out as `-6` — correct, and baffling. Here it cannot be written at all.
 
 #### Writing one
 
@@ -1791,9 +1484,7 @@ Define flag as 0b1010.  // binary
 Define mode as 0o755.   // octal
 ```
 
-`_` groups digits and is dropped: `0xDE_AD_BE_EF`, `0b1010_1010`. It is allowed **only** in
-these bases — grouping here is structural (nibbles, bytes, permission triples), while in decimal
-it is cosmetic and in a fraction it marks nothing.
+`_` groups digits and is dropped: `0xDE_AD_BE_EF`, `0b1010_1010`. It is allowed **only** in these bases — grouping here is structural (nibbles, bytes, permission triples), while in decimal it is cosmetic and in a fraction it marks nothing.
 
 There is **no bare-zero octal**: `0755` is seven hundred and fifty-five. Octal must say `0o`.
 
@@ -1801,9 +1492,7 @@ A value **prints in the base it was written in**, and hex digits print uppercase
 
 #### Width comes from the digit count
 
-This is the one rule that is unlike other languages. In C, Java, Rust, Go and Python, `0x0F` and
-`0xF` are the same value and width belongs to the declared type. Here the digits *are* the
-width:
+This is the one rule that is unlike other languages. In C, Java, Rust, Go and Python, `0x0F` and `0xF` are the same value and width belongs to the declared type. Here the digits *are* the width:
 
 ```cufet
 State 0xF.    // 0xF    — 4 bits
@@ -1811,16 +1500,13 @@ State 0x0F.   // 0x0F   — 8 bits
 State 0x000F. // 0x000F — 16 bits
 ```
 
-They compare **equal** — equality is on the value — but they display differently, and the width
-is what `not` flips within. Zero-padding hex to a byte boundary is already a habit; here it
-carries meaning.
+They compare **equal** — equality is on the value — but they display differently, and the width is what `not` flips within. Zero-padding hex to a byte boundary is already a habit; here it carries meaning.
 
 The ceiling is **64 bits**, which covers every C flag set, file mode and address there is.
 
 #### Gates
 
-A 32-bit AND *is* 32 AND gates side by side, so the same words serve a `fact` (one bit) and a
-`bits` value (N of them):
+A 32-bit AND *is* 32 AND gates side by side, so the same words serve a `fact` (one bit) and a `bits` value (N of them):
 
 ```cufet
 State 0xFF and 0x0F.       // 0x0F  — mask
@@ -1842,26 +1528,20 @@ State flags and not 0b0100. // 0b1011
 
 #### The left operand decides how the result looks
 
-In real bit code the left operand is the accumulator — `flags or MASK` — so its base and width
-are the ones that survive:
+In real bit code the left operand is the accumulator — `flags or MASK` — so its base and width are the ones that survive:
 
 ```cufet
 State 0xFF and 0b1010.   // 0x0A
 State 0b1010 and 0xFF.   // 0b1010
 ```
 
-A result **widens** when the value needs more room and never truncates. It does not shrink back
-afterwards, so a value that has grown stays wide.
+A result **widens** when the value needs more room and never truncates. It does not shrink back afterwards, so a value that has grown stays wide.
 
 #### Arithmetic
 
-`+ - * / %` all work, with **`/` as integer division** — `0x07 / 0x02` is `0x03`, where `7 / 2`
-is `3.5`. Ordering comparisons work too. Unary minus is refused: bits are unsigned.
+`+ - * / %` all work, with **`/` as integer division** — `0x07 / 0x02` is `0x03`, where `7 / 2` is `3.5`. Ordering comparisons work too. Unary minus is refused: bits are unsigned.
 
-A result with **no representation raises**, exactly as division by zero does — `0x00 - 0x1`
-would be negative, `0xFFFFFFFFFFFFFFFF + 0x1` does not fit. They are exceptions rather than
-value-level failures, because a failure would ride in the type as `bits or failure` and force an
-unwrap after every masking expression.
+A result with **no representation raises**, exactly as division by zero does — `0x00 - 0x1` would be negative, `0xFFFFFFFFFFFFFFFF + 0x1` does not fit. They are exceptions rather than value-level failures, because a failure would ride in the type as `bits or failure` and force an unwrap after every masking expression.
 
 #### Shifts
 
@@ -1870,35 +1550,18 @@ State 0b0001 shifted left by 3.   // 0b1000
 State 0xFF shifted right by 4.    // 0x0F
 ```
 
-The amount is a **number** — it counts positions, a quantity, like the `3` in `item 3 of s`. It
-must be whole and non-negative.
+The amount is a **number** — it counts positions, a quantity, like the `3` in `item 3 of s`. It must be whole and non-negative.
 
-Left shifts widen so nothing is lost; **right shifts discard the low bits**, which is what a
-right shift is rather than a failure. Being unsigned, there is no arithmetic-versus-logical
-right shift to choose between.
+Left shifts widen so nothing is lost; **right shifts discard the low bits**, which is what a right shift is rather than a failure. Being unsigned, there is no arithmetic-versus-logical right shift to choose between.
 
 `left` and `right` are **not reserved** — `the left of node` still works.
 
-> **A shift does not add width the value does not occupy.** A result's width is the same rule
-> everything else follows — the left operand's width, raised to fit the value — so a shift widens
-> only when the value grows into the new positions. Leading zeros survive when there is a width to
-> inherit them from, and cannot appear when there is not:
+> **A shift does not add width the value does not occupy.** A result's width is the same rule everything else follows — the left operand's width, raised to fit the value — so a shift widens only when the value grows into the new positions. Leading zeros survive when there is a width to inherit them from, and cannot appear when there is not:
 >
+> ``` State 0b00001111 shifted left by 2.   // 0b00111100 — width 8 inherited, zeros kept State 0b1 shifted left by 2.          // 0b100 State 0b0 shifted left by 2.          // 0b0        — NOT 0b000
 > ```
-> State 0b00001111 shifted left by 2.   // 0b00111100 — width 8 inherited, zeros kept
-> State 0b1 shifted left by 2.          // 0b100
-> State 0b0 shifted left by 2.          // 0b0        — NOT 0b000
-> ```
->
-> The last one is the edge. `0b0` is one digit wide, the value stays zero however far it is
-> shifted, and a width is only ever carried by the pattern — so there is nothing to widen. Build up
-> from a literal of the width you want (`0b000`) when the leading zeros are the point, or track the
-> width separately.
->
-> This bites hardest when a program computes codes of varying length — a Huffman table, a
-> bit-packer — where the width is data rather than decoration. **A bits value's width cannot be
-> read as a number**, so such a program must carry it in a second field. Both halves of that are
-> on the roadmap.
+> The last one is the edge. `0b0` is one digit wide, the value stays zero however far it is shifted, and a width is only ever carried by the pattern — so there is nothing to widen. Build up from a literal of the width you want (`0b000`) when the leading zeros are the point, or track the width separately.
+> This bites hardest when a program computes codes of varying length — a Huffman table, a bit-packer — where the width is data rather than decoration. **A bits value's width cannot be read as a number**, so such a program must carry it in a second field. Both halves of that are on the roadmap.
 
 #### Crossing over
 
@@ -1911,9 +1574,7 @@ State 0xFF converted to number.  // 255
 State 0xFF converted to text.    // "0xFF"
 ```
 
-`bits converted to number` **can never fail** — 64 bits always fits a number's 96-bit mantissa —
-so it gives a plain number rather than a voidable. The other direction raises if the number is
-not whole, is negative, or is past 2⁶⁴.
+`bits converted to number` **can never fail** — 64 bits always fits a number's 96-bit mantissa — so it gives a plain number rather than a voidable. The other direction raises if the number is not whole, is negative, or is past 2⁶⁴.
 
 This is what lets a **computed** value be shown in hex:
 
@@ -1922,22 +1583,17 @@ Define total as 200 + 55.
 State total converted to hex.  // 0xFF
 ```
 
-To restate a pattern in a different base, route through a number:
-`x converted to number converted to binary`.
+To restate a pattern in a different base, route through a number: `x converted to number converted to binary`.
 
 `hex`, `binary` and `octal` are not reserved words.
 
 #### A free consequence worth knowing
 
-C's most famous precedence bug is `a & b == c`, which silently parses as `a & (b == c)`. Cufet
-has the same precedence, but the mis-parse produces `bits and fact` — **a type error**, caught
-at compile time rather than computing quietly wrong answers.
+C's most famous precedence bug is `a & b == c`, which silently parses as `a & (b == c)`. Cufet has the same precedence, but the mis-parse produces `bits and fact` — **a type error**, caught at compile time rather than computing quietly wrong answers.
 
 #### Storing one
 
-A `bits` goes anywhere a value goes — an object field, a series element, a map value, a
-`voidable`, a union case, a channel. Carrying a pattern alongside something else is the usual
-shape, because a pattern on its own rarely says what it is *for*:
+A `bits` goes anywhere a value goes — an object field, a series element, a map value, a `voidable`, a union case, a channel. Carrying a pattern alongside something else is the usual shape, because a pattern on its own rarely says what it is *for*:
 
 ```cufet
 Pull a book on collections.
@@ -1961,9 +1617,7 @@ write = 0b010
 0b001
 ```
 
-**A width is data.** A program reads it back with `the width of`, and states one with
-`at … bits` — the only way to ask for leading zeros no operand held. Widening always works;
-narrowing is refused when it would drop a set bit.
+**A width is data.** A program reads it back with `the width of`, and states one with `at … bits` — the only way to ask for leading zeros no operand held. Widening always works; narrowing is refused when it would drop a set bit.
 
 ```cufet
 State the width of 0x0F.
@@ -1976,8 +1630,7 @@ State 0b00000001 at 2 bits.
 0b01
 ```
 
-See [`examples/systems/permissions.cufe`](../examples/systems/permissions.cufe) for a worked Unix-permissions
-program using all of this.
+See [`examples/systems/permissions.cufe`](../examples/systems/permissions.cufe) for a worked Unix-permissions program using all of this.
 
 ---
 
@@ -1985,8 +1638,7 @@ program using all of this.
 
 ### Objects
 
-Named, nominal types that bundle data with behavior. Where records are *data*
-(interchangeable by shape), objects are *things* (identity by name).
+Named, nominal types that bundle data with behavior. Where records are *data* (interchangeable by shape), objects are *things* (identity by name).
 
 **Definition:**
 ```cufet
@@ -2004,18 +1656,14 @@ Done.
 
 Inside a method body, `one` refers to the receiver object (`one's make`).
 
-**A type that carries nothing says so once.** `with ()` may be dropped when there are no fields,
-and so may the `{ }` when there is nothing to put in it — the same rule maps already follow, where
-`a map from text to number.` is an empty typed map:
+**A type that carries nothing says so once.** `with ()` may be dropped when there are no fields, and so may the `{ }` when there is nothing to put in it — the same rule maps already follow, where `a map from text to number.` is an empty typed map:
 
 ```cufet
 Define object red.
 Define light as a new red.
 ```
 
-That is what makes a closed union usable as an **enumeration**, and a stronger one than a
-separate `enum` construct would be — `Judge` over a closed union proves every case is handled, so
-`Otherwise` is optional and a missing case is a static error:
+That is what makes a closed union usable as an **enumeration**, and a stronger one than a separate `enum` construct would be — `Judge` over a closed union proves every case is handled, so `Otherwise` is optional and a missing case is a static error:
 
 ```cufet
 Define object red.
@@ -2048,8 +1696,7 @@ State the make of car.          ← named: "Honda"
 State the first of car.         ← positional: "Honda"
 ```
 
-**Leaving a blank** — a definition can leave the type of something to be said later. The blank is
-a name you choose, and `of` marks it:
+**Leaving a blank** — a definition can leave the type of something to be said later. The blank is a name you choose, and `of` marks it:
 
 ```cufet
 Define object stack of element with (the series of element items):
@@ -2066,8 +1713,7 @@ Cast push on (names, "alice").
 State the first of names's items.        → "alice"
 ```
 
-`a stack of number` reads like `a series of number` because it is the same shape. Each filling is
-its own type: `counts` holds numbers and `names` holds text, and neither can take the other's.
+`a stack of number` reads like `a series of number` because it is the same shape. Each filling is its own type: `counts` holds numbers and `names` holds text, and neither can take the other's.
 
 More than one blank works, since you name each:
 
@@ -2078,11 +1724,9 @@ Define object pair of left-thing of right-thing with (
 Define p as a new pair of number of text { the one-side 7, the other-side "seven" }.
 ```
 
-A definition with a blank is not itself a type — `a stack` on its own is refused, because it does
-not say what it holds.
+A definition with a blank is not itself a type — `a stack` on its own is refused, because it does not say what it holds.
 
-**A function can leave a blank too.** There is no slot to name it in, so the signature introduces
-it: a type name that names nothing, used at least **twice**. The call works out what fills it:
+**A function can leave a blank too.** There is no slot to name it in, so the signature introduces it: a type name that names nothing, used at least **twice**. The call works out what fills it:
 
 ```cufet
 Bind series of element to first-two, given (the series of element xs):
@@ -2099,12 +1743,9 @@ State the number of (cast first-two on (nums)).      → 2
 State the first of (cast first-two on (words)).      → "a"
 ```
 
-Used **once**, a name is a spelling mistake rather than a blank — `given (the nubmer n)` is an
-unknown type, as it should be. A blank must also appear in something you pass in, since that is
-where its filling is read from; and it has to mean the same type everywhere it appears in one call.
+Used **once**, a name is a spelling mistake rather than a blank — `given (the nubmer n)` is an unknown type, as it should be. A blank must also appear in something you pass in, since that is where its filling is read from; and it has to mean the same type everywhere it appears in one call.
 
-**Function-valued fields** — a field may hold a function, written the way a function-typed
-parameter is: the return type, `function`, the field name, then an optional `given (…)`:
+**Function-valued fields** — a field may hold a function, written the way a function-typed parameter is: the return type, `function`, the field name, then an optional `given (…)`:
 ```cufet
 Define object box with (the number function twice given (a number), the void function log).
 
@@ -2116,8 +1757,7 @@ Define b as a new box {
 Define t as the twice of b.
 State cast t on (6).                    → 12
 ```
-The name sits between `function` and `given`. `void` is available there as the return type
-(`the void function log`) but is not a field type on its own.
+The name sits between `function` and `given`. `void` is available there as the return type (`the void function log`) but is not a field type on its own.
 
 **Read-only fields** — `permanently` after the field name, the same place it goes on a `Define`:
 ```cufet-refused
@@ -2128,17 +1768,11 @@ The alice's name becomes "Alicia".      ← fine, name is an ordinary field
 The alice's id becomes "u-2".           ← refused, id is permanent
 ```
 
-The field is set when the object is made and never changes after. It is per-field, so other
-fields on the same object stay writable, and it is the same `permanently` that fixes a binding —
-shallow in the same way, fixing the field rather than what it holds.
+The field is set when the object is made and never changes after. It is per-field, so other fields on the same object stay writable, and it is the same `permanently` that fixes a binding — shallow in the same way, fixing the field rather than what it holds.
 
-A setter cannot be used to get around it, and that is deliberate: setters are infallible, so one
-guarding an id could only ignore a bad write rather than refuse it out loud. The
-same refusal applies inside the object's own methods (`one's id becomes …`) and to a field
-inherited through an embed.
+A setter cannot be used to get around it, and that is deliberate: setters are infallible, so one guarding an id could only ignore a bad write rather than refuse it out loud. The same refusal applies inside the object's own methods (`one's id becomes …`) and to a field inherited through an embed.
 
-**Fields with a default** — `with default <value>` after the field name, the same trailing place
-`permanently` goes. A construction site may then leave the field out:
+**Fields with a default** — `with default <value>` after the field name, the same trailing place `permanently` goes. A construction site may then leave the field out:
 
 ```cufet
 Define object person with (
@@ -2156,12 +1790,9 @@ Ada, 36, London
 Bo, 0, nowhere
 ```
 
-**An object still has no unset state.** Every field is set on every object — what changed is
-only who wrote the value down. Defaults are per-field and opt-in: a field without one is exactly
-as mandatory as it was, and leaving it out is the same refusal it always was.
+**An object still has no unset state.** Every field is set on every object — what changed is only who wrote the value down. Defaults are per-field and opt-in: a field without one is exactly as mandatory as it was, and leaving it out is the same refusal it always was.
 
-⚠ **The default is filled in at each construction site, not computed once.** So a default that
-builds something gives every object its own:
+⚠ **The default is filled in at each construction site, not computed once.** So a default that builds something gives every object its own:
 
 ```cufet
 Define object basket with (
@@ -2177,9 +1808,7 @@ State "{the number of one-basket's items} / {the number of two-basket's items}".
 1 / 0
 ```
 
-The default may be any expression of the field's type, and a mismatched one is refused **where
-the type is defined** rather than where an object is built — that is the sentence that is wrong.
-`default` is not a reserved word; nothing else can follow a field's name, so it costs no name.
+The default may be any expression of the field's type, and a mismatched one is refused **where the type is defined** rather than where an object is built — that is the sentence that is wrong. `default` is not a reserved word; nothing else can follow a field's name, so it costs no name.
 
 Pairs with `when` for the value:
 ```cufet-fragment
@@ -2194,20 +1823,15 @@ Cast steer on (car, 90).                ← with arguments: object first, then p
 Cast car's steer on (90).               ← possessive form with arguments
 ```
 
-A method call uses the same syntax as a function call — the object is the first
-argument in `on (...)`, with the method's declared parameters following.
+A method call uses the same syntax as a function call — the object is the first argument in `on (...)`, with the method's declared parameters following.
 
-**Mutation** — value-on-assignment, mutable-in-place (the same "struct model" as
-records):
+**Mutation** — value-on-assignment, mutable-in-place (the same "struct model" as records):
 ```
 The year of car becomes 2022.           ← direct
 ```
-Inside a mutating method, `one's year becomes ...` changes the actual instance
-the method was called on. Assigning a value to a copy leaves the original
-unchanged.
+Inside a mutating method, `one's year becomes ...` changes the actual instance the method was called on. Assigning a value to a copy leaves the original unchanged.
 
-**Nominal typing** — two objects with identical fields but different names are
-different types. Unlike records, shape alone is not identity; the type name is.
+**Nominal typing** — two objects with identical fields but different names are different types. Unlike records, shape alone is not identity; the type name is.
 
 **Value semantics** — objects copy on assignment, the same as records.
 
@@ -2216,29 +1840,23 @@ different types. Unlike records, shape alone is not identity; the type name is.
 If car1 is car2, state "same car".
 If alice is not bob, state "different people".
 ```
-Two objects are equal iff they are the same type and all fields are equal by
-value — including all promoted (embedded) fields, compared recursively through
-the embedding chain. Objects of different types can't be compared: a
-compile-time type error.
+Two objects are equal iff they are the same type and all fields are equal by value — including all promoted (embedded) fields, compared recursively through the embedding chain. Objects of different types can't be compared: a compile-time type error.
 
 #### Embedding (composition)
 
-An object can embed another and promote its fields and methods — composition
-that gives the convenience of reuse without inheritance:
+An object can embed another and promote its fields and methods — composition that gives the convenience of reuse without inheritance:
 
 ```cufet-fragment
 Define object customer with (the number balance) and as a person.
 ```
 
-`customer` embeds a `person` and promotes its members. Access reaches through
-automatically (transitively, through any chain):
+`customer` embeds a `person` and promotes its members. Access reaches through automatically (transitively, through any chain):
 ```cufet-fragment
 State the name of customer.             ← reaches the embedded person's name
 Cast greet on customer.                 ← reaches the embedded person's method
 ```
 
-Construction is **flat** — the object's own fields and all promoted fields are
-supplied together in one `{...}`:
+Construction is **flat** — the object's own fields and all promoted fields are supplied together in one `{...}`:
 ```cufet-fragment
 Define alice as a new customer {
     The balance 100,
@@ -2247,17 +1865,13 @@ Define alice as a new customer {
 }.
 ```
 
-A name collision between an object's own member and a promoted one is a
-compile-time error; disambiguate via the type-name handle
-(`the name of the person of customer`).
+A name collision between an object's own member and a promoted one is a compile-time error; disambiguate via the type-name handle (`the name of the person of customer`).
 
-Embedding **promotes members; it is not subtyping** — a `customer` is not
-accepted where a `person` is expected.
+Embedding **promotes members; it is not subtyping** — a `customer` is not accepted where a `person` is expected.
 
 #### Interfaces (polymorphism)
 
-An interface is a contract — a set of method signatures an object must have.
-It provides polymorphism without a hierarchy.
+An interface is a contract — a set of method signatures an object must have. It provides polymorphism without a hierarchy.
 
 ```cufet
 Define interface driver for {
@@ -2277,8 +1891,7 @@ An object declares conformance explicitly, and it is statically enforced:
 Define object street-racer with (the text name) and driver.
 ```
 
-An interface name is usable as a type — a parameter typed by an interface
-accepts any conforming object:
+An interface name is usable as a type — a parameter typed by an interface accepts any conforming object:
 ```cufet-fragment
 Bind void to take-lap, given (the driver racer):
     Cast steer on (racer, 90).
@@ -2286,12 +1899,9 @@ Bind void to take-lap, given (the driver racer):
 Done.
 ```
 
-Conformance **is a flat compile-time check, not subtyping** — no variance is
-introduced; objects do not become subtypes of one another.
+Conformance **is a flat compile-time check, not subtyping** — no variance is introduced; objects do not become subtypes of one another.
 
-**Default methods.** An interface can supply a body as well as a signature, with
-`unto <interface>`. Every conforming type gets it, and a type that writes its own
-version wins:
+**Default methods.** An interface can supply a body as well as a signature, with `unto <interface>`. Every conforming type gets it, and a type that writes its own version wins:
 
 ```cufet
 Define interface shape for {
@@ -2311,30 +1921,18 @@ Done.
 State cast describe on (a new square { the side 5 }).   → "area 25"
 ```
 
-`square` never writes a `describe` and still has one. Inside a default, `one` is
-the *conforming object*, not the interface — so a default reaches that type's own
-fields and methods, and specialises per conformer. Call a contract method with
-`cast area on one`; `one's area` yields the method rather than calling it.
+`square` never writes a `describe` and still has one. Inside a default, `one` is the *conforming object*, not the interface — so a default reaches that type's own fields and methods, and specialises per conformer. Call a contract method with `cast area on one`; `one's area` yields the method rather than calling it.
 
-- **A default satisfies conformance** — an interface's method list is what a
-  conformer ends up with, not what it must write.
-- **A type's own method beats the default**, whether nested, `unto`, or promoted
-  through an embedded type.
-- **Two interfaces supplying the same defaulted name to one type is refused**,
-  unless the type writes its own — which beats both.
+- **A default satisfies conformance** — an interface's method list is what a conformer ends up with, not what it must write.
+- **A type's own method beats the default**, whether nested, `unto`, or promoted through an embedded type.
+- **Two interfaces supplying the same defaulted name to one type is refused**, unless the type writes its own — which beats both.
 - **Interfaces do not conform to interfaces.** No hierarchy, deliberately.
 
-> **Note:** the default's body lives in its own `Bind … unto` block, which is
-> hoisted and may sit anywhere in the file — so reading the interface's method
-> list does not tell you which methods already have bodies. Putting defaults
-> next to their interface is a strong suggestion, not a rule.
+> **Note:** the default's body lives in its own `Bind … unto` block, which is hoisted and may sit anywhere in the file — so reading the interface's method list does not tell you which methods already have bodies. Putting defaults next to their interface is a strong suggestion, not a rule.
 
 #### Methods defined outside the object body (`unto`)
 
-A method can be declared *outside* its object's definition — attached with
-`unto <type>` — for code organization (grouping related methods elsewhere,
-splitting a large type across locations). It is **identical in every way**
-to a method nested in the definition; only the declaration location differs:
+A method can be declared *outside* its object's definition — attached with `unto <type>` — for code organization (grouping related methods elsewhere, splitting a large type across locations). It is **identical in every way** to a method nested in the definition; only the declaration location differs:
 
 ```cufet
 Define object person with (the text name, the number age).
@@ -2349,29 +1947,13 @@ Bind number to birthday unto person:
 Done.
 ```
 
-- `unto <type>` goes right after the method name, before the optional
-  `, given (...)` parameter clause: `Bind void to steer unto racer, given
-  (the number angle): ... Done.`
-- Sees `one` (the receiver) and the object's fields exactly like a nested
-  method. Called identically too — `Cast greet on alice`, `Cast alice's
-  greet` — indistinguishable at the call site from a nested method.
-- **Hoisted, order-independent** — the `unto` method may appear before or
-  after `Define object <type>` in the file.
-- **Your own object types and interfaces only.** `unto` on an undefined name
-  is a static error. This is not foreign-type extension and not overloading.
-  `unto <interface>` means something different — it supplies a *default* for
-  every conformer, described under [Interfaces](#interfaces-polymorphism)
-  above, rather than attaching a method to one type.
-- **Method names are unique per type, regardless of where declared.** A name
-  clash between a nested method and an `unto` method (or between two `unto`
-  methods) on the *same* type is a static error. The same name `unto`
-  *different* types is fine — there's no shared namespace across types.
-- **Satisfies interface conformance** exactly as a nested method would — the
-  conformance check looks for "does the type have a matching method?", not
-  "where was it declared?"
-- **A definition that leaves a blank takes `unto` two ways.** Naming the
-  template attaches the member to every filling; naming one filling attaches
-  it to that filling alone:
+- `unto <type>` goes right after the method name, before the optional `, given (...)` parameter clause: `Bind void to steer unto racer, given (the number angle): ... Done.`
+- Sees `one` (the receiver) and the object's fields exactly like a nested method. Called identically too — `Cast greet on alice`, `Cast alice's greet` — indistinguishable at the call site from a nested method.
+- **Hoisted, order-independent** — the `unto` method may appear before or after `Define object <type>` in the file.
+- **Your own object types and interfaces only.** `unto` on an undefined name is a static error. This is not foreign-type extension and not overloading. `unto <interface>` means something different — it supplies a *default* for every conformer, described under [Interfaces](#interfaces-polymorphism) above, rather than attaching a method to one type.
+- **Method names are unique per type, regardless of where declared.** A name clash between a nested method and an `unto` method (or between two `unto` methods) on the *same* type is a static error. The same name `unto` *different* types is fine — there's no shared namespace across types.
+- **Satisfies interface conformance** exactly as a nested method would — the conformance check looks for "does the type have a matching method?", not "where was it declared?"
+- **A definition that leaves a blank takes `unto` two ways.** Naming the template attaches the member to every filling; naming one filling attaches it to that filling alone:
 
   ```cufet
   Define object stack of element with (the series of element items).
@@ -2389,20 +1971,13 @@ Done.
   Done.
   ```
 
-  A member written unto the template is written against the blank, exactly
-  like one nested in the definition, and `element` is replaced per filling. A
-  member written unto one filling is written against the concrete type — which
-  is what lets `total` add its items up, something no body written for every
-  filling could do. `cast total on <a stack of text>` is refused: that type
-  does not have it.
+  A member written unto the template is written against the blank, exactly like one nested in the definition, and `element` is replaced per filling. A member written unto one filling is written against the concrete type — which is what lets `total` add its items up, something no body written for every filling could do. `cast total on <a stack of text>` is refused: that type does not have it.
 
-  A filling cannot redeclare a member the template already gives it — the same
-  "unique per type" rule as everywhere else, reported when the filling is made.
+  A filling cannot redeclare a member the template already gives it — the same "unique per type" rule as everywhere else, reported when the filling is made.
 
 #### Getters and setters
 
-A **getter** is a computed read-only property. Callers access it exactly like a
-stored field — no distinction at the call site (Dart-style uniform access):
+A **getter** is a computed read-only property. Callers access it exactly like a stored field — no distinction at the call site (Dart-style uniform access):
 
 ```cufet-fragment
 Define object circle with (the number radius):
@@ -2415,8 +1990,7 @@ State circle's area.         ← calls the getter; indistinguishable from a fiel
 State the area of circle.    ← same
 ```
 
-- `Get <name> as <type>:` declares a getter inside the object body.
-  `Get <name> unto <type> as <type>:` declares it outside (same semantics, pure organization).
+- `Get <name> as <type>:` declares a getter inside the object body. `Get <name> unto <type> as <type>:` declares it outside (same semantics, pure organization).
 - The body must return a value. `Get ... as void:` is a parse error.
 - A getter name cannot collide with a stored field on the same type — a static error.
 - Getters are **infallible** — no `return a failure`.
@@ -2433,18 +2007,11 @@ Done.
 The display of sensor becomes 100.    ← fires the setter
 ```
 
-- `Set <name> given (the <type> <param>):` intercepts `obj's <name> becomes value` and
-  `the <name> of obj becomes value`. `Set <name> unto <type> given (...):` is the
-  outside-body form.
-- **Infallible** — a setter may clamp, convert, normalize, or ignore a value by returning before it
-  writes one, but it cannot fail. A bad value that has to be refused out loud is refused by the caller,
-  before the assignment.
-- Inside the setter body, `one's <this-name> becomes X` writes directly to the underlying
-  storage, bypassing the setter (no infinite recursion).
+- `Set <name> given (the <type> <param>):` intercepts `obj's <name> becomes value` and `the <name> of obj becomes value`. `Set <name> unto <type> given (...):` is the outside-body form.
+- **Infallible** — a setter may clamp, convert, normalize, or ignore a value by returning before it writes one, but it cannot fail. A bad value that has to be refused out loud is refused by the caller, before the assignment.
+- Inside the setter body, `one's <this-name> becomes X` writes directly to the underlying storage, bypassing the setter (no infinite recursion).
 
-**Give both the same name and you have a two-way property.** Nothing special is needed —
-a getter and a setter declared on one name simply meet, and the property becomes readable
-and writable. It need not correspond to any stored field:
+**Give both the same name and you have a two-way property.** Nothing special is needed — a getter and a setter declared on one name simply meet, and the property becomes readable and writable. It need not correspond to any stored field:
 
 ```cufet
 Define object temp-sensor with (the number celsius):
@@ -2464,18 +2031,13 @@ State sensor's celsius.                ← 0, written through
 State sensor's fahrenheit.             ← 32, read back
 ```
 
-`fahrenheit` is stored nowhere. The object holds one number, `celsius`, and the pair
-presents a second view of it that reads and writes like an ordinary field. This is the
-whole of what other languages call a property, and it falls out of the two declarations
-rather than needing a third form.
+`fahrenheit` is stored nowhere. The object holds one number, `celsius`, and the pair presents a second view of it that reads and writes like an ordinary field. This is the whole of what other languages call a property, and it falls out of the two declarations rather than needing a third form.
 
-Either half may stand alone: a getter with no setter is read-only (`circle's area`
-above), and a setter with no getter is write-only.
+Either half may stand alone: a getter with no setter is read-only (`circle's area` above), and a setter with no getter is write-only.
 
 #### Named makers
 
-A named maker is a function that builds and returns an object — a *constructor*, in
-the C++ or Java sense. It is declared with `making a <type>` in the return-type slot:
+A named maker is a function that builds and returns an object — a *constructor*, in the C++ or Java sense. It is declared with `making a <type>` in the return-type slot:
 
 ```cufet-fragment
 Define object point with (the number x, the number y).
@@ -2497,17 +2059,14 @@ Define origin-pt as cast origin.
 Define p as cast from-pair on ("3,4").
 ```
 
-- `Bind making a <type> to <name>[, given (<params>)]:` — the implicit return type
-  is `<type>`.
-- Fallible form: `Bind making a <type> or failure to <name>:` — the body may
-  `return a failure ...`.
+- `Bind making a <type> to <name>[, given (<params>)]:` — the implicit return type is `<type>`.
+- Fallible form: `Bind making a <type> or failure to <name>:` — the body may `return a failure ...`.
 - Called via the standard `Cast <name> on (args)` syntax — no new call syntax.
 - A type can have multiple named makers; the `{...}` literal is still available.
 
 #### Unmakers
 
-An unmaker runs automatically when a **binding** goes out of scope — a *destructor*, or
-Rust's `Drop`. It is RAII at the `Done.` that closes the block the name was declared in:
+An unmaker runs automatically when a **binding** goes out of scope — a *destructor*, or Rust's `Drop`. It is RAII at the `Done.` that closes the block the name was declared in:
 
 ```cufet-fragment
 Bind unmaking a conn to disconnect:
@@ -2525,46 +2084,15 @@ Rules:
 
 - `Bind unmaking a <type> to <name>: ... Done.` — top-level only, no parameters.
 - **One per type** — a second unmaker for the same type is a static error.
-- **Infallible** — `return a failure` in the body is a static error. For cleanup
-  that *can* fail, expose a fallible method (`close`/`flush`/`commit`) and call it
-  *before* the scope ends. Relying on the unmaker for fallible cleanup risks silent
-  data loss — the unmaker swallows all outcomes.
-- **LIFO order** — when multiple objects in the same scope have unmakers, they
-  fire in reverse definition order (last-defined, first-destroyed).
-- **Every way out of the block fires them** — reaching its `Done.`, a `Stop.`, a
-  `return`, an exception caught further out, and an exception that is never caught and
-  ends the program. A dying program still unmakes what the blocks it is leaving hold.
-- **A task body is a block** — an object defined at the top of `Have <rabbit> start a
-  task:` is unmade at that task's `Done.`, whether the task finishes or faults.
-- ⚠ **A function or method BODY is NOT a block, and its own `Define`s are never unmade.**
-  Neither is the program's top level. The same object declared in an `If` or a loop fires
-  its unmaker, and declared directly in a function body fires nothing — in both backends. Only the
-  task body above is the exception. So a function that opens a resource and lets it fall out of
-  scope LEAKS it, which is the case this feature exists for.
-  The workaround is a block: wrap the binding in `If`, a loop, or a rabbit, and it fires at that
-  `Done.` This is a known limitation with a prerequisite of its own — a value being RETURNED is
-  not exempt from its scope's unmakers today, so simply firing them here would destroy what a
-  function hands back. See DESIGN, *Objects: lifetime and accessors*, for the four reasons this
-  is the behaviour rather than a bug.
-- **`one` is the object being destroyed** — its fields and methods are accessible
-  via `one's <field>` and `Cast <method> on one`.
-- **Ownership rule** — destroy what you opened, not what you borrowed. A resource
-  passed in from outside is the caller's responsibility; closing it in the unmaker
-  is a double-close bug.
-- **It is a hook on the BINDING, not on the object** — which is what the ownership rule above is
-  really telling you, and it is worth saying outright. `Define copy as original.` copies the
-  object, so two names exist and the unmaker fires **twice**. An object reached without a
-  `Define` — a temporary, an element of a series, a field of another object — has no declaring
-  block, so its unmaker **never** fires. Cufet does not track who owns a resource; you do.
-- ⚠ **An unmaker may run MORE THAN ONCE per logical object, so write it to be ID—POTENT.**
-  A copy fires it twice; a value returned out of the block it was declared in is unmade on the way
-  out and handed over anyway. **Safe** for hooks that can repeat — logging, flushing, marking,
-  setting a flag. **Unsafe** for release that cannot — closing a file by name, releasing a
-  lock, decrementing a count. For those, expose a method and call it where you can see it happen.
-  This follows from what an unmaker IS: a per-binding scope-exit hook, not an ownership
-  destructor. Cufet objects are value types with no identity, so there is no unique owner to give
-  the release to, and unmaking is not deallocation — the arena owns the memory and exposes no
-  `free`, which is why a repeat is observable but never a double-free.
+- **Infallible** — `return a failure` in the body is a static error. For cleanup that *can* fail, expose a fallible method (`close`/`flush`/`commit`) and call it *before* the scope ends. Relying on the unmaker for fallible cleanup risks silent data loss — the unmaker swallows all outcomes.
+- **LIFO order** — when multiple objects in the same scope have unmakers, they fire in reverse definition order (last-defined, first-destroyed).
+- **Every way out of the block fires them** — reaching its `Done.`, a `Stop.`, a `return`, an exception caught further out, and an exception that is never caught and ends the program. A dying program still unmakes what the blocks it is leaving hold.
+- **A task body is a block** — an object defined at the top of `Have <rabbit> start a task:` is unmade at that task's `Done.`, whether the task finishes or faults.
+- ⚠ **A function or method BODY is NOT a block, and its own `Define`s are never unmade.** Neither is the program's top level. The same object declared in an `If` or a loop fires its unmaker, and declared directly in a function body fires nothing — in both backends. Only the task body above is the exception. So a function that opens a resource and lets it fall out of scope LEAKS it, which is the case this feature exists for. The workaround is a block: wrap the binding in `If`, a loop, or a rabbit, and it fires at that `Done.` This is a known limitation with a prerequisite of its own — a value being RETURNED is not exempt from its scope's unmakers today, so simply firing them here would destroy what a function hands back. See DESIGN, *Objects: lifetime and accessors*, for the four reasons this is the behaviour rather than a bug.
+- **`one` is the object being destroyed** — its fields and methods are accessible via `one's <field>` and `Cast <method> on one`.
+- **Ownership rule** — destroy what you opened, not what you borrowed. A resource passed in from outside is the caller's responsibility; closing it in the unmaker is a double-close bug.
+- **It is a hook on the BINDING, not on the object** — which is what the ownership rule above is really telling you, and it is worth saying outright. `Define copy as original.` copies the object, so two names exist and the unmaker fires **twice**. An object reached without a `Define` — a temporary, an element of a series, a field of another object — has no declaring block, so its unmaker **never** fires. Cufet does not track who owns a resource; you do.
+- ⚠ **An unmaker may run MORE THAN ONCE per logical object, so write it to be ID—POTENT.** A copy fires it twice; a value returned out of the block it was declared in is unmade on the way out and handed over anyway. **Safe** for hooks that can repeat — logging, flushing, marking, setting a flag. **Unsafe** for release that cannot — closing a file by name, releasing a lock, decrementing a count. For those, expose a method and call it where you can see it happen. This follows from what an unmaker IS: a per-binding scope-exit hook, not an ownership destructor. Cufet objects are value types with no identity, so there is no unique owner to give the release to, and unmaking is not deallocation — the arena owns the memory and exposes no `free`, which is why a repeat is observable but never a double-free.
 
 ---
 
@@ -2576,24 +2104,17 @@ A tree needs a node that holds nodes. Written directly, that does not work:
 Define object node with (the text label, the voidable node next).
 ```
 
-An object is a **value** — its fields are stored inline, one after another. A node
-containing a node contains a node, and so on with no end, so the type has no finite
-size. Wrapping it in `voidable` changes nothing: `voidable node` still has to reserve
-room for a whole node. The same is true of a record containing one, or a catalogue
-case.
+An object is a **value** — its fields are stored inline, one after another. A node containing a node contains a node, and so on with no end, so the type has no finite size. Wrapping it in `voidable` changes nothing: `voidable node` still has to reserve room for a whole node. The same is true of a record containing one, or a catalogue case.
 
-**Hold the children in a container instead.** A series is a *reference* — the object
-stores a pointer to elements that live elsewhere — so the type closes:
+**Hold the children in a container instead.** A series is a *reference* — the object stores a pointer to elements that live elsewhere — so the type closes:
 
 ```cufet
 Define object node with (the text label, the series of node children).
 ```
 
-That is the whole rule. The indirection is what makes a recursive shape possible,
-and a container is how Cufet spells indirection.
+That is the whole rule. The indirection is what makes a recursive shape possible, and a container is how Cufet spells indirection.
 
-**A worked tree**, evaluating `2 + 3 * 4` — this is
-[`examples/structures/arbtree.cufe`](../examples/structures/arbtree.cufe):
+**A worked tree**, evaluating `2 + 3 * 4` — this is [`examples/structures/arbtree.cufe`](../examples/structures/arbtree.cufe):
 
 ```cufet
 Define object expr with (the text kind, the number value, the series of expr kids).
@@ -2615,12 +2136,9 @@ Define product as a new expr { the kind "mul", the value 0,
 
 Three things fall out of the shape:
 
-- **A leaf is a node with no children**, not a different type. `a series of expr`
-  with no `with (…)` is the empty one.
-- **Children can be attached later.** A node's `children` is an ordinary series, so
-  `Insert kid into the children of parent.` works and the tree can be grown top-down.
-- **But a child is stored by copy.** Objects are values, and a series holds what it
-  was given — not a link to it. So this prints `after` then `before`:
+- **A leaf is a node with no children**, not a different type. `a series of expr` with no `with (…)` is the empty one.
+- **Children can be attached later.** A node's `children` is an ordinary series, so `Insert kid into the children of parent.` works and the tree can be grown top-down.
+- **But a child is stored by copy.** Objects are values, and a series holds what it was given — not a link to it. So this prints `after` then `before`:
 
   ```cufet-fragment
   Insert kid into the children of parent.
@@ -2629,13 +2147,9 @@ Three things fall out of the shape:
   State the label of item 1 of the children of parent.  ← before
   ```
 
-  Finish a subtree before attaching it. Editing a node after it is in the tree edits
-  the one you are holding, not the one the tree has.
+  Finish a subtree before attaching it. Editing a node after it is in the tree edits the one you are holding, not the one the tree has.
 
-**The `voidable` trap — the two backends differ here, and deliberately.** A
-self-referential field *runs interpreted*, because the interpreter holds values in a
-scope dictionary and never needs a fixed layout. The native compiler cannot, and
-refuses rather than emitting something that does not compile:
+**The `voidable` trap — the two backends differ here, and deliberately.** A self-referential field *runs interpreted*, because the interpreter holds values in a scope dictionary and never needs a fixed layout. The native compiler cannot, and refuses rather than emitting something that does not compile:
 
 ```
 'node' contains itself directly, and a value of it would have no fixed size. …
@@ -2643,13 +2157,9 @@ Hold the nested values in a container instead: `the series of node children` wor
 because a series is a reference. A recursive shape needs that indirection.
 ```
 
-`cufet check --native` reports this as a **warning** and still exits 0 — the program
-does run, just not compiled. `cufet build` refuses outright. If a program is meant to
-compile, check it with `--native` and this is caught before you reach the compiler.
+`cufet check --native` reports this as a **warning** and still exits 0 — the program does run, just not compiled. `cufet build` refuses outright. If a program is meant to compile, check it with `--native` and this is caught before you reach the compiler.
 
-**For a plain sequence, use a series.** The recursive shape earns its keep when a node
-branches — a tree, an expression, a nested document. A linked list of one-child nodes
-is a series written the hard way.
+**For a plain sequence, use a series.** The recursive shape earns its keep when a node branches — a tree, an expression, a nested document. A linked list of one-child nodes is a series written the hard way.
 
 ---
 
@@ -2680,33 +2190,20 @@ vec2(x: 4, y: 6)
 
 The rules are deliberately narrow, which is what keeps the feature predictable:
 
-- **Only `+ - * /`.** Comparisons and `is` are not overloadable, so equality keeps one
-  meaning everywhere — including inside `unique`, map keys, and `sorted`.
-- **The operand types are an ORDERED PAIR**, and at least one of them must be an object
-  type you defined. `vec2 * number` declares that and only that — `number * vec2` is a
-  separate declaration, written when you want it:
+- **Only `+ - * /`.** Comparisons and `is` are not overloadable, so equality keeps one meaning everywhere — including inside `unique`, map keys, and `sorted`.
+- **The operand types are an ORDERED PAIR**, and at least one of them must be an object type you defined. `vec2 * number` declares that and only that — `number * vec2` is a separate declaration, written when you want it:
 
   ```
   Bind overloading *, given (the lhs is a vec2, the rhs is a number):   ← u * 3
   Bind overloading *, given (the lhs is a number, the rhs is a vec2):   ← 3 * u
   ```
 
-  Ordered, because swapping is not a shorthand anyone could have: `2 - u` is not `u - 2`,
-  and `2 / u` is not `u / 2`. There is still no conversion or promotion, so there is never
-  more than one candidate and never any ambiguity about which one applies.
-- **A pair that already means something cannot be overloaded.** That is exactly two:
-  `number op number` and `bits op bits`, which are built-in arithmetic. Everything else
-  is free — `text * number` and `text + text` are errors today, so nothing is shadowed by
-  giving them a meaning. Whether `+` on text is good style when `joined to` exists is the
-  writer's call, not the checker's.
-- **One overload per ordered pair and operator**, enforced by the type checker. A type may
-  take part in several — `vec2 * number`, `number * vec2` and `vec2 * vec2` coexist.
+  Ordered, because swapping is not a shorthand anyone could have: `2 - u` is not `u - 2`, and `2 / u` is not `u / 2`. There is still no conversion or promotion, so there is never more than one candidate and never any ambiguity about which one applies.
+- **A pair that already means something cannot be overloaded.** That is exactly two: `number op number` and `bits op bits`, which are built-in arithmetic. Everything else is free — `text * number` and `text + text` are errors today, so nothing is shadowed by giving them a meaning. Whether `+` on text is good style when `joined to` exists is the writer's call, not the checker's.
+- **One overload per ordered pair and operator**, enforced by the type checker. A type may take part in several — `vec2 * number`, `number * vec2` and `vec2 * vec2` coexist.
 - **Built-ins cannot be shadowed** — `number + number` always means addition.
-- **The return type is whatever the body returns.** A dot product returning `number`, as
-  above, is fine.
-- **An overload may fail.** Returning `a failure` makes it fallible, and it then composes
-  with `Try to:`, `but on failure`, and `or pass the failure off` like any other fallible
-  call. This is exactly how matrix arithmetic is built.
+- **The return type is whatever the body returns.** A dot product returning `number`, as above, is fine.
+- **An overload may fail.** Returning `a failure` makes it fallible, and it then composes with `Try to:`, `but on failure`, and `or pass the failure off` like any other fallible call. This is exactly how matrix arithmetic is built.
 
 Declarations are free-standing and top-level, not members of the object.
 
@@ -2729,10 +2226,7 @@ Bind number to get-ten:
 Done.
 ```
 
-`Bind` declares a named function. The return type comes first (`number`, `void`,
-or a function type). Parameters follow `given`. Functions with no parameters omit
-`given` entirely. Functions are top-level and hoisted, so they may be defined in
-any order and may recurse.
+`Bind` declares a named function. The return type comes first (`number`, `void`, or a function type). Parameters follow `given`. Functions with no parameters omit `given` entirely. Functions are top-level and hoisted, so they may be defined in any order and may recurse.
 
 **Calling:**
 ```cufet-fragment
@@ -2740,11 +2234,9 @@ State cast plus on (3, 4).         ← in expression position
 Cast greet on ("hello").           ← as a statement (void or discarded result)
 ```
 
-`Cast` works on any expression that evaluates to a function — a name, a variable,
-a series element, or a method.
+`Cast` works on any expression that evaluates to a function — a name, a variable, a series element, or a method.
 
-**Named arguments** — the same `the <name> <value>` form object and record literals use.
-They may be given in any order:
+**Named arguments** — the same `the <name> <value>` form object and record literals use. They may be given in any order:
 
 ```cufet
 Bind number to take-half, given (the number whole, the number divisor):
@@ -2759,13 +2251,9 @@ State cast take-half on (16, the divisor 2).
 8
 ```
 
-Positional arguments must all come first; once one is named, the ones after it must be
-too, because position no longer says which parameter is meant. Naming one that is not a
-parameter, giving one twice, or leaving one out is a static error naming the parameter.
+Positional arguments must all come first; once one is named, the ones after it must be too, because position no longer says which parameter is meant. Naming one that is not a parameter, giving one twice, or leaving one out is a static error naming the parameter.
 
-The names come from the **declaration**, so a call reaching its function through a value
-— a parameter, a field, another call's result — stays positional: the value carries the
-parameter types, but not what they are called.
+The names come from the **declaration**, so a call reaching its function through a value — a parameter, a field, another call's result — stays positional: the value carries the parameter types, but not what they are called.
 
 **Several versions of one name** — when exactly one argument's type tells them apart:
 
@@ -2794,22 +2282,15 @@ Done.
 5
 ```
 
-Each element of that catalogue is a `(num-node or add-node)` — nothing at the call says
-which — so the version is chosen from what the value actually is.
+Each element of that catalogue is a `(num-node or add-node)` — nothing at the call says which — so the version is chosen from what the value actually is.
 
-Every version must take the same number of arguments and give back the same type, so a
-caller knows what it gets without knowing which version ran. Two versions claiming the
-same types is an error.
+Every version must take the same number of arguments and give back the same type, so a caller knows what it gets without knowing which version ran. Two versions claiming the same types is an error.
 
-**More than one argument may tell them apart**, and then every combination needs a
-version — four of them for two arguments carrying two types each. A missing combination
-is an error naming it, because a call could pass that pair and nothing would run.
+**More than one argument may tell them apart**, and then every combination needs a version — four of them for two arguments carrying two types each. A missing combination is an error naming it, because a call could pass that pair and nothing would run.
 
-The versions decide what the name accepts: `eval` above takes a `(num-node or add-node)`,
-and passing anything else is an ordinary type error naming the case that has no version.
+The versions decide what the name accepts: `eval` above takes a `(num-node or add-node)`, and passing anything else is an ordinary type error naming the case that has no version.
 
-**A version may carry a condition** with `when`, and one version must carry none — it
-runs when no condition holds:
+**A version may carry a condition** with `when`, and one version must carry none — it runs when no condition holds:
 
 ```cufet
 Define object add-node with (the number left, the number right).
@@ -2834,16 +2315,9 @@ State cast fold on (a new add-node { the left 2, the right 3 }).
 5
 ```
 
-**Two conditions that could both hold are an error.** Above, `left is 0` on its own
-would overlap `right is 0` — both hold on `0 + 0` — so the first says `and node's
-right is not 0` to exclude it. The language never decides which of two overlapping
-versions wins; it refuses them.
+**Two conditions that could both hold are an error.** Above, `left is 0` on its own would overlap `right is 0` — both hold on `0 + 0` — so the first says `and node's right is not 0` to exclude it. The language never decides which of two overlapping versions wins; it refuses them.
 
-A condition is built from equality against a literal (`node's left is 0`), a type
-test (`node is a num-lit`), either of them negated, and `and`, `or` and `xor`.
-Ordering and arithmetic are not part of it: `when node's left is greater than 3` is
-refused, because whether two such conditions overlap is not something the checker
-can decide by comparing them.
+A condition is built from equality against a literal (`node's left is 0`), a type test (`node is a num-lit`), either of them negated, and `and`, `or` and `xor`. Ordering and arithmetic are not part of it: `when node's left is greater than 3` is refused, because whether two such conditions overlap is not something the checker can decide by comparing them.
 
 **Early exit:**
 ```cufet-fragment
@@ -2851,8 +2325,7 @@ Return value.    ← return a value
 Return.          ← void early exit
 ```
 
-A non-`void` function must return a value on every path; one that can fall off
-its end without returning is a compile-time error.
+A non-`void` function must return a value on every path; one that can fall off its end without returning is a compile-time error.
 
 **Functions are first-class values:**
 ```cufet-fragment
@@ -2860,8 +2333,7 @@ Define op as plus.
 State cast op on (3, 4).           → 7
 ```
 
-A function assigned to a variable carries its full type. The type checker catches
-calling the wrong signature through any alias.
+A function assigned to a variable carries its full type. The type checker catches calling the wrong signature through any alias.
 
 **Function-typed parameters:**
 ```cufet
@@ -2874,9 +2346,7 @@ Bind number to double, given (the number x): return x * 2. Done.
 State cast apply on (5, double).   → 10
 ```
 
-The parameter type `the number function f given (the number)` declares that `f`
-must be a function taking a number and returning a number. Passing the wrong
-signature is a static type error.
+The parameter type `the number function f given (the number)` declares that `f` must be a function taking a number and returning a number. Passing the wrong signature is a static type error.
 
 **Functions as return values:**
 ```cufet
@@ -2890,10 +2360,7 @@ Define fn as cast get-doubler on ().
 State cast fn on (5).              → 10
 ```
 
-The return type `number function given (the number)` declares that this function
-returns a function. Closures and lambda literals can be returned too — see
-[Closures](#closures) and
-[Lambda literals](#lambda-literals-anonymous-functions) below.
+The return type `number function given (the number)` declares that this function returns a function. Closures and lambda literals can be returned too — see [Closures](#closures) and [Lambda literals](#lambda-literals-anonymous-functions) below.
 
 **Series of functions:**
 ```cufet-fragment
@@ -2906,11 +2373,7 @@ For each op in ops, repeat:
 Done.
 ```
 
-A series whose element type is a function type. All the usual series operations
-apply — access, add, remove, for-each — and any accessed element can be `Cast`
-directly.
-It can also be **passed, held in a field, and returned**. The type is spelled exactly as above,
-with the parameter or field name after the whole type rather than inside it:
+A series whose element type is a function type. All the usual series operations apply — access, add, remove, for-each — and any accessed element can be `Cast` directly. It can also be **passed, held in a field, and returned**. The type is spelled exactly as above, with the parameter or field name after the whole type rather than inside it:
 
 ```cufet-fragment
 Bind number to apply-all, given (the series of number function given (the number) ops, the number seed):
@@ -2928,17 +2391,14 @@ Done.
 
 **Where the name sits is what tells two readings apart**, and both are real:
 
-- `the series of number function make given (the number)` — a parameter taking a function that
-  RETURNS a series of numbers. The name sits straight after `function`.
-- `the series of number function given (the number) ops` — a parameter taking a SERIES of
-  functions. The function type states its own `given`, so the name follows the whole type.
+- `the series of number function make given (the number)` — a parameter taking a function that RETURNS a series of numbers. The name sits straight after `function`.
+- `the series of number function given (the number) ops` — a parameter taking a SERIES of functions. The function type states its own `given`, so the name follows the whole type.
 
 
 
 #### Closures
 
-A function declared with `Bind` *inside* another function or method body
-captures the enclosing variables at the point of declaration:
+A function declared with `Bind` *inside* another function or method body captures the enclosing variables at the point of declaration:
 
 ```cufet
 Bind number function given (the number) to make-adder, given (the number n):
@@ -2952,12 +2412,7 @@ Define add-five as cast make-adder on (5).
 State cast add-five on (10).          → 15
 ```
 
-Capture follows the same value/reference split used everywhere else in
-Cufet: values (`number`, `text`, `fact`, objects and records) are captured as a
-snapshot at declaration time, so later changes to the outer variable don't
-affect an already-created closure, and a change the closure makes to its copy
-doesn't reach the outer variable; series and maps capture the live instance,
-so mutations through the closure are visible in the outer scope and vice versa.
+Capture follows the same value/reference split used everywhere else in Cufet: values (`number`, `text`, `fact`, objects and records) are captured as a snapshot at declaration time, so later changes to the outer variable don't affect an already-created closure, and a change the closure makes to its copy doesn't reach the outer variable; series and maps capture the live instance, so mutations through the closure are visible in the outer scope and vice versa.
 
 ```cufet
 Define object box with (the number size).
@@ -2978,8 +2433,7 @@ box(size: 1)
 
 #### Lambda literals (anonymous functions)
 
-A function literal written inline, with no name — usable anywhere a function
-value goes: assigned, passed as an argument, returned, or stored in a series.
+A function literal written inline, with no name — usable anywhere a function value goes: assigned, passed as an argument, returned, or stored in a series.
 
 ```cufet
 Bind number to apply, given (the number value,
@@ -2997,17 +2451,13 @@ State cast apply on (10, a function given (the number x): Return x * 2. Done).
 20
 ```
 
-The body is always `Done`-terminated (there's no inline single-statement
-form). The return type is **inferred from the body** — there's no syntax to
-declare it. Lambdas capture enclosing variables under the same rule as
-[Closures](#closures) above, and always carry their captured environment.
+The body is always `Done`-terminated (there's no inline single-statement form). The return type is **inferred from the body** — there's no syntax to declare it. Lambdas capture enclosing variables under the same rule as [Closures](#closures) above, and always carry their captured environment.
 
 ---
 
 ### Sorting
 
-`sorted` is a postfix operator on a series. It returns a **new** series; the original is
-untouched.
+`sorted` is a postfix operator on a series. It returns a **new** series; the original is untouched.
 
 ```cufet
 Define nums as a series of number with (5, 1, 4, 1, 3).
@@ -3035,11 +2485,9 @@ State steps sorted in reverse.
 (wake, leave, dress)
 ```
 
-`in reverse` right after `sorted` belongs to the sort, so `sorted in reverse` is still a descending
-sort. It works on a series only; text is not reversed.
+`in reverse` right after `sorted` belongs to the sort, so `sorted in reverse` is still a descending sort. It works on a series only; text is not reversed.
 
-Numbers sort numerically and text sorts ordinally. For a series of records or objects,
-sort by a field with `sorted by the <field>`:
+Numbers sort numerically and text sorts ordinally. For a series of records or objects, sort by a field with `sorted by the <field>`:
 
 ```cufet
 Define object person with (the text name, the number age).
@@ -3057,11 +2505,9 @@ Bo
 Ada
 ```
 
-The sort is **stable** — equal elements keep their original relative order — and
-`in reverse` composes with `by the <field>`.
+The sort is **stable** — equal elements keep their original relative order — and `in reverse` composes with `by the <field>`.
 
-To sort by something that is not a field, sort **by a function**: one that takes an element
-and gives back a number or text. Name it, or write it in place:
+To sort by something that is not a field, sort **by a function**: one that takes an element and gives back a number or text. Name it, or write it in place:
 
 ```cufet
 Bind number to size-of, given (the text word): Return the length of word. Done.
@@ -3075,13 +2521,9 @@ State words sorted by a function given (the text word): Return the length of wor
 (apple, pear, kiwi, fig)
 ```
 
-The function is called once on each element, in order, before anything is compared. If a name
-is both a field of the element and a function, `sorted by` it is refused — write the function
-in place to say which you mean.
+The function is called once on each element, in order, before anything is compared. If a name is both a field of the element and a function, `sorted by` it is refused — write the function in place to say which you mean.
 
-> ⚠ Because `sorted` produces a copy, `Insert x into (items sorted)` inserts into a temporary
-> and the result is lost — silently: nothing refuses it. Sort into a variable first if the
-> sorted copy is what you mean to change.
+> ⚠ Because `sorted` produces a copy, `Insert x into (items sorted)` inserts into a temporary and the result is lost — silently: nothing refuses it. Sort into a variable first if the sorted copy is what you mean to change.
 
 ---
 
@@ -3098,10 +2540,8 @@ Cufet has a static type checker that runs before execution. It catches:
 - Passing a function with the wrong signature
 - Returning the wrong type from a function
 - Functions that might not return on every path
-- Using a `voidable` value where a plain (non-void) value is required without
-  handling the void case
-- Using type-specific operations (arithmetic, `the length of`, etc.) on an
-  un-narrowed union value — narrow with `is a <type>` first
+- Using a `voidable` value where a plain (non-void) value is required without handling the void case
+- Using type-specific operations (arithmetic, `the length of`, etc.) on an un-narrowed union value — narrow with `is a <type>` first
 - Adding a value to a catalogue that doesn't match the declared union element type
 - Setting an atlas value that doesn't match the declared union value type
 - Calling a method that doesn't exist on an object
@@ -3112,59 +2552,37 @@ Cufet has a static type checker that runs before execution. It catches:
 - Adding a record to a series whose shape it doesn't match
 - An object that claims an interface but doesn't satisfy its contract
 - Comparing records of incompatible shapes, or objects of different types, with `is`
-- Joining a non-text value with `joined to`, or using the wrong key/value types
-  with a map
+- Joining a non-text value with `joined to`, or using the wrong key/value types with a map
 - Converting a non-text value with `converted to number`
-- A `range ... counting by` step that is zero or negative (when known at
-  compile time; a runtime check catches the rest)
-- Using `split by`, `contains`, `the position of ... in ...`, or any
-  substring form on a non-text value
+- A `range ... counting by` step that is zero or negative (when known at compile time; a runtime check catches the rest)
+- Using `split by`, `contains`, `the position of ... in ...`, or any substring form on a non-text value
 - An empty delimiter in `split by`
-- A character position of zero or negative in a substring form (when known
-  at compile time; a runtime check catches the rest)
-- Using `replace`, `in uppercase`/`in lowercase`, `trimmed`, `is alphabetic`/
-  `is numeric`/`is whitespace`, or `the code point of` on a non-text value
+- A character position of zero or negative in a substring form (when known at compile time; a runtime check catches the rest)
+- Using `replace`, `in uppercase`/`in lowercase`, `trimmed`, `is alphabetic`/ `is numeric`/`is whitespace`, or `the code point of` on a non-text value
 - An empty target in `replace ... with ... in ...`
 - Declaring a name already declared in the same scope
 - Declaring a name that exists in an enclosing scope without the `shadow` keyword
 - Using `Define a shadow x` when no outer `x` exists
 - `unto` naming an undefined type (an interface is fine — it supplies a default)
-- Two interfaces supplying the same defaulted method name to one type, unless
-  that type writes its own
-- A method name clash between a nested method and an `unto` method (or
-  between two `unto` methods) on the same object type
+- Two interfaces supplying the same defaulted method name to one type, unless that type writes its own
+- A method name clash between a nested method and an `unto` method (or between two `unto` methods) on the same object type
 - Reassigning a `permanently` binding with `becomes`
-- Dropping a failable (`failure T`) value without handling it (fallback,
-  propagation, or enclosing `Try`) — unhandled failure is always a static error
-- Reading from a `writable stream of text`, or writing to a `readable stream
-  of text` — stream direction is statically enforced
-- File reads (`read all from the file`, `read all lines from the file`) and
-  process execution (`run`) outside a `Try` block or propagation context —
-  their failable return types must be handled
-- Declaring a second unmaker (`Bind unmaking a <type>`) for a type that
-  already has one — duplicate unmaker is a static error
+- Dropping a failable (`failure T`) value without handling it (fallback, propagation, or enclosing `Try`) — unhandled failure is always a static error
+- Reading from a `writable stream of text`, or writing to a `readable stream of text` — stream direction is statically enforced
+- File reads (`read all from the file`, `read all lines from the file`) and process execution (`run`) outside a `Try` block or propagation context — their failable return types must be handled
+- Declaring a second unmaker (`Bind unmaking a <type>`) for a type that already has one — duplicate unmaker is a static error
 - Using `return a failure` inside an unmaker body — unmakers are infallible
 - `Get ... as void:` — getters must return a typed value; void is a parse error
 
-**Records use structural typing** — shape is identity. Two records with the same
-fields and types are the same type regardless of where they were declared. Named
-fields match order-insensitively; positional fields match by order.
+**Records use structural typing** — shape is identity. Two records with the same fields and types are the same type regardless of where they were declared. Named fields match order-insensitively; positional fields match by order.
 
-**Objects use nominal typing** — the type name is identity. Two objects with
-identical fields but different names are different types.
+**Objects use nominal typing** — the type name is identity. Two objects with identical fields but different names are different types.
 
-**Assignment semantics differ by kind:** records and objects are value-typed
-(copy on assignment); series and maps are reference-typed (share). Records and
-objects are bounded "things"; series and maps are unbounded "collections" — and
-the copy-vs-share intuition differs accordingly.
+**Assignment semantics differ by kind:** records and objects are value-typed (copy on assignment); series and maps are reference-typed (share). Records and objects are bounded "things"; series and maps are unbounded "collections" — and the copy-vs-share intuition differs accordingly.
 
-⚠ A shared map is easy to be caught by, because the sharing crosses a call:
-passing a map to a function lets that function change the caller's map, and
-`Define copy as original.` gives a second name rather than a second map. To get a
-private one, build it and copy the entries across — there is no copying form.
+⚠ A shared map is easy to be caught by, because the sharing crosses a call: passing a map to a function lets that function change the caller's map, and `Define copy as original.` gives a second name rather than a second map. To get a private one, build it and copy the entries across — there is no copying form.
 
-**Taking an item out of a series** goes by the item's type. A record or an object comes out as a copy,
-so changing it leaves the series alone, and to change the series you put it back:
+**Taking an item out of a series** goes by the item's type. A record or an object comes out as a copy, so changing it leaves the series alone, and to change the series you put it back:
 
 ```cufet
 Define deck as a series of records like (the text suit, the text rank) with (
@@ -3180,8 +2598,7 @@ State the suit of item 1 of deck.    ← Spades: the item was replaced
 
 A series inside a series comes out shared, so changing it changes the one inside.
 
-**A copied record still shares a series or a map it holds.** The fields are copied by the same rule, so
-a number or a text in the copy is its own, and a series in it is the same series.
+**A copied record still shares a series or a map it holds.** The fields are copied by the same rule, so a number or a text in the copy is its own, and a series in it is the same series.
 
 Type errors name the violation, the line, and the fix:
 
@@ -3197,20 +2614,16 @@ Change the value to a number, or define a separate series that holds text.
 
 ### Voidable values (`void` and `voidable T`)
 
-Cufet has no null. Absence is expressed with a first-class empty value, `void`,
-and a type that admits it, `voidable T`. This is how "a value, or nothing" is
-said — explicitly, and checked.
+Cufet has no null. Absence is expressed with a first-class empty value, `void`, and a type that admits it, `voidable T`. This is how "a value, or nothing" is said — explicitly, and checked.
 
-**`void`** is a real, holdable value (it prints as `void`). A `void`-returning
-function produces it; a map lookup that misses produces it.
+**`void`** is a real, holdable value (it prints as `void`). A `void`-returning function produces it; a map lookup that misses produces it.
 
 **`voidable T`** is "a `T`, or `void`":
 ```cufet-fragment
 Define maybe-score as 95.        ← a number is a valid voidable number (present case)
 Define maybe-score as void.      ← the absent case
 ```
-Usable in any annotation position — parameters, return types, series elements,
-record/object fields:
+Usable in any annotation position — parameters, return types, series elements, record/object fields:
 ```
 Bind voidable number to find-score, given (the text name):
     ...
@@ -3218,11 +2631,9 @@ Done.
 ```
 
 **Type rules:**
-- A plain `T` widens to `voidable T` automatically (a `number` is accepted where
-  a `voidable number` is wanted) — one-way.
+- A plain `T` widens to `voidable T` automatically (a `number` is accepted where a `voidable number` is wanted) — one-way.
 - `void` is the empty case of any `voidable T`.
-- A `voidable T` does **not** collapse to `T`. Using one where a plain `T` is
-  required is a static type error — you must handle the void case first.
+- A `voidable T` does **not** collapse to `T`. Using one where a plain `T` is required is a static type error — you must handle the void case first.
 
 **Testing and handling:**
 
@@ -3231,14 +2642,9 @@ Done.
 If maybe-score is not void, state maybe-score.  ← narrowed to a plain number here, safe to use directly
 Otherwise, state "no score".
 ```
-Inside a branch that has checked a **variable** is not void, the checker narrows
-that variable to its plain `T`, so it can be used directly. Narrowing is keyed on
-the variable and is cleared if the variable is reassigned within the branch.
+Inside a branch that has checked a **variable** is not void, the checker narrows that variable to its plain `T`, so it can be used directly. Narrowing is keyed on the variable and is cleared if the variable is reassigned within the branch.
 
-**Guard narrowing** — an exiting guard narrows the *fall-through* path. When a
-one-line `If x is void, return …` (no `Otherwise`) whose body always returns is
-passed, the statements after it run only when `x` was **not** void, so `x` is
-narrowed to plain `T` from that point to the end of the block:
+**Guard narrowing** — an exiting guard narrows the *fall-through* path. When a one-line `If x is void, return …` (no `Otherwise`) whose body always returns is passed, the statements after it run only when `x` was **not** void, so `x` is narrowed to plain `T` from that point to the end of the block:
 ```cufet
 Bind number or failure to parse-age, given (the text raw):
     Define n as raw converted to number.
@@ -3246,15 +2652,9 @@ Bind number or failure to parse-age, given (the text raw):
     Return n.                        ← n is a plain number here, not voidable
 Done.
 ```
-A disjunctive guard narrows every variable it names: after
-`If x is void or y is void, return …`, both `x` and `y` are non-void on the
-fall-through. The narrowing lives only in the block that contains the guard —
-a guard nested inside an `If`-arm says nothing about the path where that arm was
-skipped, so it never leaks past the arm.
+A disjunctive guard narrows every variable it names: after `If x is void or y is void, return …`, both `x` and `y` are non-void on the fall-through. The narrowing lives only in the block that contains the guard — a guard nested inside an `If`-arm says nothing about the path where that arm was skipped, so it never leaks past the arm.
 
-**Through `and`** — every side of an `and` holds in its arm, so what each side proves does
-too. The right side of an `and` runs only once the left side is true, so it is checked
-knowing what the left proved:
+**Through `and`** — every side of an `and` holds in its arm, so what each side proves does too. The right side of an `and` runs only once the left side is true, so it is checked knowing what the left proved:
 ```cufet
 Bind void to report, given (the voidable number score, the fact counted):
     If counted and score is not void and score is greater than 5:
@@ -3268,10 +2668,7 @@ Cast report on (7, true).
 ```
 When two sides narrow the same variable, it is narrowed by neither.
 
-> To narrow a value produced by an expression (like a map lookup), name it first
-> — `Define s as the entry for "alice" in ages.` then check `s`. A bare literal
-> buried inside a lookup is a value worth naming anyway; narrowing follows the
-> named binding.
+> To narrow a value produced by an expression (like a map lookup), name it first — `Define s as the entry for "alice" in ages.` then check `s`. A bare literal buried inside a lookup is a value worth naming anyway; narrowing follows the named binding.
 
 `but void is <default>` — an inline fallback that always yields a plain `T`:
 ```cufet-fragment
@@ -3282,22 +2679,16 @@ Define n as (the entry for "alice" in ages but void is 0).
 
 ### Union types and narrowing
 
-A **union type** is a value that can be one of several listed types. Declared
-with `or` in parentheses:
+A **union type** is a value that can be one of several listed types. Declared with `or` in parentheses:
 
 ```cufet-fragment
 Define the (number or text) x as 42.
 Define the (number or text or fact) y as 42.
 ```
 
-**Type-agnostic operations** — without narrowing, only operations that work on
-every case are allowed: assignment, `becomes`, passing to a union-typed parameter,
-storing into a catalogue or atlas, and equality comparison (`is`/`is not`) with
-any value — equal when both hold the same kind of value and those values are equal.
+**Type-agnostic operations** — without narrowing, only operations that work on every case are allowed: assignment, `becomes`, passing to a union-typed parameter, storing into a catalogue or atlas, and equality comparison (`is`/`is not`) with any value — equal when both hold the same kind of value and those values are equal.
 
-**Type-specific operations** — arithmetic, `the length of`, and anything that
-only makes sense for one type — require narrowing first. Using them on an
-un-narrowed union is a static type error that names the expected narrowing form.
+**Type-specific operations** — arithmetic, `the length of`, and anything that only makes sense for one type — require narrowing first. Using them on an un-narrowed union is a static type error that names the expected narrowing form.
 
 #### `is a <type>` / `is not a <type>`
 
@@ -3308,14 +2699,11 @@ If x is a number, state x + 1.
 If x is not a text, state "not text".
 ```
 
-Works with any type name: `is a number`, `is a text`, `is a fact`, object type
-names, etc. `is an <type>` is accepted wherever the article fits. Both forms
-are identical.
+Works with any type name: `is a number`, `is a text`, `is a fact`, object type names, etc. `is an <type>` is accepted wherever the article fits. Both forms are identical.
 
 #### In-branch narrowing
 
-After a successful `is a <type>` check, the value is that type inside the
-branch — type-specific operations are legal there:
+After a successful `is a <type>` check, the value is that type inside the branch — type-specific operations are legal there:
 
 ```cufet
 Define the (number or text) x as 42.
@@ -3324,9 +2712,7 @@ If x is a number, state x + 1.      ← x is a number here; arithmetic is legal
 Otherwise, state the length of x.   ← x is a text here (narrowed by elimination)
 ```
 
-**Narrowing by elimination** — for a **closed** union, the `Otherwise` arm
-automatically narrows to the remaining case(s). After `if x is a number` on a
-`(number or text)` union, `Otherwise` knows `x` is `text`.
+**Narrowing by elimination** — for a **closed** union, the `Otherwise` arm automatically narrows to the remaining case(s). After `if x is a number` on a `(number or text)` union, `Otherwise` knows `x` is `text`.
 
 For a three-case union, two tested arms leave the third for `Otherwise`:
 
@@ -3338,14 +2724,9 @@ Otherwise if x is a text, state the length of x.
 Otherwise, state x converted to text.    ← x is a fact here
 ```
 
-**`is not a <type>`** narrows the true branch to the complement — for a
-`(number or text)` union, `if x is not a number` narrows `x` to `text` in the
-true branch. Its `Otherwise` narrows the other way, to the type that was tested:
-reaching it means `x` **is** a number. That holds for a lone arm only — after
-several arms, reaching the `Otherwise` no longer says which test failed.
+**`is not a <type>`** narrows the true branch to the complement — for a `(number or text)` union, `if x is not a number` narrows `x` to `text` in the true branch. Its `Otherwise` narrows the other way, to the type that was tested: reaching it means `x` **is** a number. That holds for a lone arm only — after several arms, reaching the `Otherwise` no longer says which test failed.
 
-**A group of tests on one value** narrows to the sub-union it names, and the
-`Otherwise` gets whatever is left:
+**A group of tests on one value** narrows to the sub-union it names, and the `Otherwise` gets whatever is left:
 
 ```cufet
 Define the (number or text or fact) x as 42.
@@ -3361,24 +2742,17 @@ Otherwise:
 Done.
 ```
 
-Every operand has to be a positive test on the **same** name. A mixed
-disjunction narrows nothing, because reaching the arm would not imply any one of
-its parts.
+Every operand has to be a positive test on the **same** name. A mixed disjunction narrows nothing, because reaching the arm would not imply any one of its parts.
 
-**Open unions** — `Otherwise` after an open union check is *not* narrowable;
-only agnostic operations are legal there. Open is sound (narrowing still
-required), never `any`.
+**Open unions** — `Otherwise` after an open union check is *not* narrowable; only agnostic operations are legal there. Open is sound (narrowing still required), never `any`.
 
-Narrowing is **variable-level** — the same rule as voidable narrowing. The
-narrowed type clears when the variable is reassigned. To narrow a value produced
-by an expression, name it first.
+Narrowing is **variable-level** — the same rule as voidable narrowing. The narrowed type clears when the variable is reassigned. To narrow a value produced by an expression, name it first.
 
 ---
 
 ### Shorthands
 
-A **shorthand** is another way to write a type. It names the type once, and every place that
-writes the name means exactly that type:
+A **shorthand** is another way to write a type. It names the type once, and every place that writes the name means exactly that type:
 
 ```cufet
 Define object circle with (the number radius).
@@ -3402,19 +2776,11 @@ Done.
 9
 ```
 
-**It is the type, not a new one.** A `shape` and a `(circle or square)` are the same type
-everywhere, so either can be given where the other is expected, and a `Judge` over a `shape` must
-cover both cases. A shorthand may stand for any type that can be written (a union, a series, a map,
-a function type), and may be written with another: `(shape or void)` and
-`(shape or line)` are the unions you would get by writing every member out.
+**It is the type, not a new one.** A `shape` and a `(circle or square)` are the same type everywhere, so either can be given where the other is expected, and a `Judge` over a `shape` must cover both cases. A shorthand may stand for any type that can be written (a union, a series, a map, a function type), and may be written with another: `(shape or void)` and `(shape or line)` are the unions you would get by writing every member out.
 
-**It is seen where an object would be.** A shorthand belongs to the program wherever it is
-written. Inside a project, the files of a folder see each other's shorthands; a book keeps its
-own to itself.
+**It is seen where an object would be.** A shorthand belongs to the program wherever it is written. Inside a project, the files of a folder see each other's shorthands; a book keeps its own to itself.
 
-**Refused:** a second shorthand of the same name; a shorthand named like an object or an
-interface; one that comes back round to itself (`ring` written with `loop`, and `loop` with
-`ring`); and `a new shape`, since only an object can be made.
+**Refused:** a second shorthand of the same name; a shorthand named like an object or an interface; one that comes back round to itself (`ring` written with `loop`, and `loop` with `ring`); and `a new shape`, since only an object can be made.
 
 `shorthand` is a reserved word.
 
@@ -3424,20 +2790,14 @@ interface; one that comes back round to itself (`ring` written with `loop`, and 
 
 Cufet distinguishes two kinds of bad outcome:
 
-- **Failures** — expected, recoverable outcomes that are part of a function's
-  contract. A file not being found is a failure. A config value being invalid is
-  a failure. These are things a caller should plan for.
-- **Exceptions** — unexpected outcomes the type system can't prevent at compile
-  time. Divide-by-zero is an exception. An out-of-bounds access with a runtime
-  index is an exception. These are things that should not happen in correct code.
+- **Failures** — expected, recoverable outcomes that are part of a function's contract. A file not being found is a failure. A config value being invalid is a failure. These are things a caller should plan for.
+- **Exceptions** — unexpected outcomes the type system can't prevent at compile time. Divide-by-zero is an exception. An out-of-bounds access with a runtime index is an exception. These are things that should not happen in correct code.
 
 The two paths are handled separately and cannot be mixed up.
 
 #### Failure values (`failure T`)
 
-`failure T` is "either a plain `T` or a failure." A failure carries a text
-message and an optional category tag. The parallel to `voidable T` is exact:
-same inline-fallback syntax, same propagation operator, same block form.
+`failure T` is "either a plain `T` or a failure." A failure carries a text message and an optional category tag. The parallel to `voidable T` is exact: same inline-fallback syntax, same propagation operator, same block form.
 
 **Failure literal:**
 ```cufet-fragment
@@ -3445,14 +2805,12 @@ Define err as a failure "not found" of category "not-found".
 Define err as a failure "something went wrong".       ← category is optional
 ```
 
-**Inline fallback — `but on failure <default>`** — collapses `failure T` to
-plain `T`, like `but void is` for voidable:
+**Inline fallback — `but on failure <default>`** — collapses `failure T` to plain `T`, like `but void is` for voidable:
 ```cufet-fragment
 Define n as (cast parse-int on (raw) but on failure 0).
 ```
 
-**Propagation — `or pass the failure off`** — re-raises the failure to the
-caller. The function must itself declare a failable return type:
+**Propagation — `or pass the failure off`** — re-raises the failure to the caller. The function must itself declare a failable return type:
 ```cufet
 Bind number or failure to to-positive, given (the number n):
     If n is 0 or less, return a failure "must be positive" of category "range".
@@ -3465,10 +2823,7 @@ Bind number or failure to double-positive, given (the number n):
 Done.
 ```
 
-**A call made for its effect can fail too — `void or failure`.** A close, a flush, a check:
-nothing comes back when it works, and a failure when it does not. A bare `Return.` or reaching
-`Done.` is success. The call is a statement — in a `Try`, or passed off to the caller by ending
-the line with the same words:
+**A call made for its effect can fail too — `void or failure`.** A close, a flush, a check: nothing comes back when it works, and a failure when it does not. A bare `Return.` or reaching `Done.` is success. The call is a statement — in a `Try`, or passed off to the caller by ending the line with the same words:
 
 ```cufet
 Define object ledger with (the number balance).
@@ -3495,21 +2850,15 @@ Done.
 only 6 left, and 6 is still there
 ```
 
-- **Its result is not a value**, on either path — `Define x as cast withdraw on (…)` is refused,
-  in a `Try` or out of one, and so is `but on failure`, which would have nothing to stand in for.
-- **`… or pass the failure off.` ends any fallible call**, not only one to `void or failure` — a
-  `number or failure` called for its effect drops the number and passes the failure on.
-- **A plain `void` function cannot fail.** `Return a failure` in one is refused, pointing at
-  `Bind void or failure to …`.
+- **Its result is not a value**, on either path — `Define x as cast withdraw on (…)` is refused, in a `Try` or out of one, and so is `but on failure`, which would have nothing to stand in for.
+- **`… or pass the failure off.` ends any fallible call**, not only one to `void or failure` — a `number or failure` called for its effect drops the number and passes the failure on.
+- **A plain `void` function cannot fail.** `Return a failure` in one is refused, pointing at `Bind void or failure to …`.
 
-**Unhandled failure is a static error** — dropping a failable value without
-a fallback, a propagation, or a `Try` block is caught by the type checker, not
-at runtime.
+**Unhandled failure is a static error** — dropping a failable value without a fallback, a propagation, or a `Try` block is caught by the type checker, not at runtime.
 
 #### Block form: `Try to`
 
-For multiple statements that may produce failures, `Try to:` handles them as a
-group:
+For multiple statements that may produce failures, `Try to:` handles them as a group:
 
 ```cufet
 Try to:
@@ -3521,9 +2870,7 @@ In case of failure:
 Done.
 ```
 
-**A name made in the body outlives it when every handler leaves** (returns, or stops, skips
-or exits as a guard does), because then the only way to the next line is through a body that
-ran to its end:
+**A name made in the body outlives it when every handler leaves** (returns, or stops, skips or exits as a guard does), because then the only way to the next line is through a body that ran to its end:
 
 ```cufet
 Bind number or failure to halve, given (the number n):
@@ -3549,13 +2896,9 @@ half 5
 no half of 0
 ```
 
-An exception handler re-raises unless it says `Suppress the exception.`, so one that never can
-counts as leaving. A handler that can carry on past the `Try` keeps the old rule: the body's names
-end at its `Done.`, and using one after it is refused. What the body made is unmade where its names
-end, as if it had been written in the block around the `Try`.
+An exception handler re-raises unless it says `Suppress the exception.`, so one that never can counts as leaving. A handler that can carry on past the `Try` keeps the old rule: the body's names end at its `Done.`, and using one after it is refused. What the body made is unmade where its names end, as if it had been written in the block around the `Try`.
 
-Inside `In case of failure:`, `the failure` is bound to the failure value.
-Access its fields with named access:
+Inside `In case of failure:`, `the failure` is bound to the failure value. Access its fields with named access:
 ```cufet-fragment
 In case of failure:
     State the message of the failure.
@@ -3563,8 +2906,7 @@ In case of failure:
 Done.
 ```
 
-**A failure message is any text**, not only a literal — an interpolation is how a failure names
-what went wrong:
+**A failure message is any text**, not only a literal — an interpolation is how a failure names what went wrong:
 
 ```cufet
 Bind number or failure to parse-it, given (the text w):
@@ -3583,8 +2925,7 @@ Done.
 'warm' is not a number
 ```
 
-**`In case of exception`** — catches runtime exceptions (divide-by-zero,
-dynamic out-of-bounds, etc.) that the type system can't statically prevent:
+**`In case of exception`** — catches runtime exceptions (divide-by-zero, dynamic out-of-bounds, etc.) that the type system can't statically prevent:
 ```cufet
 Try to:
     State 1 / 0.
@@ -3594,14 +2935,9 @@ In case of exception:
 Done.
 ```
 
-Inside the handler, `the exception` is bound to what was raised, and its text is
-reached the same way a failure's is — `the message of the exception`. The value
-itself is opaque: printing it gives `<exception>`, as printing a function gives
-`<function>`.
+Inside the handler, `the exception` is bound to what was raised, and its text is reached the same way a failure's is — `the message of the exception`. The value itself is opaque: printing it gives `<exception>`, as printing a function gives `<function>`.
 
-**The binding can be renamed, and the parentheses are optional.** Bare, it is
-called `the exception`; naming it is what nested handlers want, so the inner one
-does not shadow a name the outer one is still using:
+**The binding can be renamed, and the parentheses are optional.** Bare, it is called `the exception`; naming it is what nested handlers want, so the inner one does not shadow a name the outer one is still using:
 
 ```cufet-fragment
 In case of exception:                     ← bound as 'the exception'
@@ -3609,12 +2945,9 @@ In case of exception (the trouble):       ← bound as 'the trouble'
 In case of exception (the exception):     ← the same as the bare form, said out loud
 ```
 
-It is block-local to the handler either way. This is the pair `For each` already
-has: `For each item in items` names the iterand, and bare `it` is the implicit one.
+It is block-local to the handler either way. This is the pair `For each` already has: `For each item in items` names the iterand, and bare `it` is the implicit one.
 
-Exceptions **re-raise by default** after the handler runs.
-`Suppress the exception.` (only valid inside `In case of exception`) swallows the
-exception and continues execution after the `Try`:
+Exceptions **re-raise by default** after the handler runs. `Suppress the exception.` (only valid inside `In case of exception`) swallows the exception and continues execution after the `Try`:
 ```cufet-fragment
 In case of exception (the exception):
     State "ignoring: {exception}".
@@ -3622,9 +2955,7 @@ In case of exception (the exception):
 Done.
 ```
 
-Leaving the handler this way releases everything the handler opened — objects
-with unmakers are unmade, files opened inside it are closed — exactly as
-`Stop` does on the way out of a loop.
+Leaving the handler this way releases everything the handler opened — objects with unmakers are unmade, files opened inside it are closed — exactly as `Stop` does on the way out of a loop.
 
 Both handlers can appear in the same `Try`:
 ```
@@ -3639,9 +2970,7 @@ In case of exception (the exception):
 Done.
 ```
 
-At least one handler is required. The two paths are independent — a failure
-goes only to `In case of failure`; an exception goes only to
-`In case of exception`.
+At least one handler is required. The two paths are independent — a failure goes only to `In case of failure`; an exception goes only to `In case of exception`.
 
 ---
 
@@ -3651,8 +2980,7 @@ goes only to `In case of failure`; an exception goes only to
 
 #### Reading from standard input
 
-The pre-defined name `input` holds standard input as a `readable stream of
-text`. Three read forms cover common patterns:
+The pre-defined name `input` holds standard input as a `readable stream of text`. Three read forms cover common patterns:
 
 ```cufet
 Define line  as read a line from the input.      ← voidable text (void at EOF)
@@ -3660,8 +2988,7 @@ Define all   as read all from the input.         ← text (empty string at EOF)
 Define lines as read all lines from the input.   ← series of text (empty at EOF)
 ```
 
-`read a line from the input` strips the trailing newline and returns
-`voidable text` — `void` signals end-of-input. The typical read loop:
+`read a line from the input` strips the trailing newline and returns `voidable text` — `void` signals end-of-input. The typical read loop:
 ```cufet
 Repeat:
     Define line as read a line from the input.
@@ -3672,14 +2999,11 @@ Until false.
 
 (`until false` is the standard idiom for a loop that exits only via `Stop.`)
 
-`read all from the input` drains all of stdin and returns it as one `text`
-value (empty input → `""`; never void). `read all lines from the input`
-splits on newlines and returns a `series of text` (empty input → empty series).
+`read all from the input` drains all of stdin and returns it as one `text` value (empty input → `""`; never void). `read all lines from the input` splits on newlines and returns a `series of text` (empty input → empty series).
 
 #### Writing to standard output
 
-The pre-defined name `output` holds standard output as a `writable stream of text` — the other
-half of `the input`. `State` always ends a line; this is how you write part of one:
+The pre-defined name `output` holds standard output as a `writable stream of text` — the other half of `the input`. `State` always ends a line; this is how you write part of one:
 
 ```cufet
 Write "Loading" to the output.
@@ -3690,9 +3014,7 @@ State " done".
 Loading... done
 ```
 
-**It costs no new anything.** `Write <text> to <stream>.` already existed for file streams, and
-so did the type — so reading from `the output` is refused by the direction check that was already
-there:
+**It costs no new anything.** `Write <text> to <stream>.` already existed for file streams, and so did the type — so reading from `the output` is refused by the direction check that was already there:
 
 ```cufet-refused
 Define line as read a line from the output.
@@ -3703,22 +3025,16 @@ Here on line 1, you're trying to read from a writable stream of text.
 Use a readable stream of text as the source — 'the input' is always available, or use 'With the file ... open for reading as s:' for a file stream.
 ```
 
-**It flushes on every write**, so a prompt reaches the reader before the program blocks waiting
-for their answer:
+**It flushes on every write**, so a prompt reaches the reader before the program blocks waiting for their answer:
 
 ```cufet-fragment
 Write "name> " to the output.
 Define who as read a line from the input.
 ```
 
-⚠ **A TERMINATOR is not the same as DATA**, and this is where that first shows. `State` ends its
-line the way the platform does — CRLF on Windows — while a newline written INSIDE a text is a byte
-you chose and is passed through untouched. So `Write "a\nb" to the output.` sends a bare line feed on
-every platform, and `State "a"` does not.
+⚠ **A TERMINATOR is not the same as DATA**, and this is where that first shows. `State` ends its line the way the platform does — CRLF on Windows — while a newline written INSIDE a text is a byte you chose and is passed through untouched. So `Write "a\nb" to the output.` sends a bare line feed on every platform, and `State "a"` does not.
 
-`Define output as …` is refused, exactly as `Define input as …` is: the name is taken. The
-word also means "send this value downstream" inside a pipe stage, which `input` has always done
-too — `for each s from input, … output s` — and the two readings are decided by where they appear.
+`Define output as …` is refused, exactly as `Define input as …` is: the name is taken. The word also means "send this value downstream" inside a pipe stage, which `input` has always done too — `for each s from input, … output s` — and the two readings are decided by where they appear.
 
 #### File I/O
 
@@ -3733,9 +3049,7 @@ In case of failure:
 Done.
 ```
 
-`read all from the file <path>` returns `text or failure`.
-`read all lines from the file <path>` returns `series of text or failure`.
-The path is any text expression (literal, variable, or interpolated string).
+`read all from the file <path>` returns `text or failure`. `read all lines from the file <path>` returns `series of text or failure`. The path is any text expression (literal, variable, or interpolated string).
 
 Failure categories: `"not-found"`, `"permission-denied"`, `"disk-error"`.
 
@@ -3745,12 +3059,9 @@ Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
 Append "more\n" to the file "out.txt".      ← append to end
 ```
 
-Write and append complete silently on success; on failure they raise a Cufet
-failure caught by the enclosing `Try` handler.
+Write and append complete silently on success; on failure they raise a Cufet failure caught by the enclosing `Try` handler.
 
-**A write creates the FILE, never the directory.** Writing into a directory that is not there
-fails with *"the directory for 'notes/today.txt' does not exist"* — nothing was being looked for,
-so it names the thing you can go and make.
+**A write creates the FILE, never the directory.** Writing into a directory that is not there fails with *"the directory for 'notes/today.txt' does not exist"* — nothing was being looked for, so it names the thing you can go and make.
 
 **Making and removing:**
 ```cufet
@@ -3759,29 +3070,19 @@ Remove the file "notes/today.txt".
 Remove the directory "notes".
 ```
 
-All three are fallible, like every other filesystem operation, and complete silently on success.
-Failure categories: `"not-found"`, `"already-there"`, `"not-empty"`, `"permission-denied"`,
-`"disk-error"`.
+All three are fallible, like every other filesystem operation, and complete silently on success. Failure categories: `"not-found"`, `"already-there"`, `"not-empty"`, `"permission-denied"`, `"disk-error"`.
 
-**The refusals are most of what these are**, and both are the language's ordinary character
-applied to the filesystem:
+**The refusals are most of what these are**, and both are the language's ordinary character applied to the filesystem:
 
-- **`Make the directory` does not create missing parents.** `Make the directory "a/b/c".` when `a`
-  is not there fails rather than making three directories because one was asked for. A step that
-  could mean two things refuses instead of guessing.
-- **`Remove the directory` does not take the contents with it.** A directory with anything in it
-  fails with *"still has things in it"*. A recursive delete is the one operation here that can
-  destroy work nobody asked to lose, so emptying a directory is a loop you write on purpose.
-- Making one that is **already there** fails too, rather than quietly doing nothing — so a program
-  that means *"make sure this exists"* asks `the path … exists` and says so.
+- **`Make the directory` does not create missing parents.** `Make the directory "a/b/c".` when `a` is not there fails rather than making three directories because one was asked for. A step that could mean two things refuses instead of guessing.
+- **`Remove the directory` does not take the contents with it.** A directory with anything in it fails with *"still has things in it"*. A recursive delete is the one operation here that can destroy work nobody asked to lose, so emptying a directory is a loop you write on purpose.
+- Making one that is **already there** fails too, rather than quietly doing nothing — so a program that means *"make sure this exists"* asks `the path … exists` and says so.
 
-`Remove` is the same word series mutation uses (`Remove <x> from <series>`); `file` and
-`directory` are what make the two readings decidable, so neither cost a new keyword.
+`Remove` is the same word series mutation uses (`Remove <x> from <series>`); `file` and `directory` are what make the two readings decidable, so neither cost a new keyword.
 
 **Scoped file streams — `With the file ... open for reading/writing as`:**
 
-For reading line-by-line, or writing incrementally, open the file as a stream
-and let Cufet close it automatically:
+For reading line-by-line, or writing incrementally, open the file as a stream and let Cufet close it automatically:
 
 ```cufet
 With the file "data.txt" open for reading as src:
@@ -3792,11 +3093,7 @@ With the file "data.txt" open for reading as src:
 Done.
 ```
 
-**A line can only be read from an open stream, never from a path.** A path has
-nowhere to remember how far you have read, so `read a line from the file "x"`
-would hand back the first line every time — it is refused, and the error names
-this form. Reading a whole file at once (`read all from the file "x"`) needs no
-stream, because there is no position to keep.
+**A line can only be read from an open stream, never from a path.** A path has nowhere to remember how far you have read, so `read a line from the file "x"` would hand back the first line every time — it is refused, and the error names this form. Reading a whole file at once (`read all from the file "x"`) needs no stream, because there is no position to keep.
 
 ```cufet
 With the file "out.txt" open for writing as log:
@@ -3805,19 +3102,13 @@ With the file "out.txt" open for writing as log:
 Done.
 ```
 
-`With the file <path> open for reading as <name>: ... Done.` opens the file,
-binds it to `<name>` (a `readable stream of text`) for the duration of the
-block, and closes it on every exit path — including failures, exceptions, and
-`Stop.` inside the block. `for writing` binds a `writable stream of text`.
+`With the file <path> open for reading as <name>: ... Done.` opens the file, binds it to `<name>` (a `readable stream of text`) for the duration of the block, and closes it on every exit path — including failures, exceptions, and `Stop.` inside the block. `for writing` binds a `writable stream of text`.
 
-Stream direction is **statically enforced**: reading from a writable stream, or
-writing to a readable stream, is a static type error.
+Stream direction is **statically enforced**: reading from a writable stream, or writing to a readable stream, is a static type error.
 
-An open failure (file not found, permission denied) propagates to the enclosing
-`Try` handler the same as any other file failure.
+An open failure (file not found, permission denied) propagates to the enclosing `Try` handler the same as any other file failure.
 
-**Stream reads support all three read forms** — a `readable stream of text`
-works anywhere `the input` works:
+**Stream reads support all three read forms** — a `readable stream of text` works anywhere `the input` works:
 ```cufet
 With the file "lines.txt" open for reading as s:
     Define lines as read all lines from s.
@@ -3850,11 +3141,9 @@ In case of failure:
 Done.
 ```
 
-The result is a **record**, so its fields are read with `the <field> of <record>`.
-Possessive `'s` is for objects and is a static error here.
+The result is a **record**, so its fields are read with `the <field> of <record>`. Possessive `'s` is for objects and is a static error here.
 
-`run <program>` and `run <program> with arguments (<arg1>, <arg2>, ...)`
-return a result record with three fields:
+`run <program>` and `run <program> with arguments (<arg1>, <arg2>, ...)` return a result record with three fields:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -3862,19 +3151,13 @@ return a result record with three fields:
 | `errors` | `text` | everything written to stderr |
 | `exit-code` | `number` | the process exit code |
 
-The return type is `result or failure`. A **launch failure** (program not found,
-permission denied) is a Cufet failure. A program that **runs and exits nonzero**
-is not a failure — it is a normal result; check `exit-code` or `errors` to
-decide what to do.
+The return type is `result or failure`. A **launch failure** (program not found, permission denied) is a Cufet failure. A program that **runs and exits nonzero** is not a failure — it is a normal result; check `exit-code` or `errors` to decide what to do.
 
 Failure categories: `"not-found"`, `"permission-denied"`, `"io-error"`.
 
-Arguments are passed as individual strings to the OS — no shell is invoked and
-shell injection is structurally impossible. The program name is any text
-expression.
+Arguments are passed as individual strings to the OS — no shell is invoked and shell injection is structurally impossible. The program name is any text expression.
 
-**The argument list may be a series instead**, when the program does not know until it runs how
-many arguments there will be:
+**The argument list may be a series instead**, when the program does not know until it runs how many arguments there will be:
 
 ```cufet
 Try to:
@@ -3887,11 +3170,9 @@ In case of failure:
 Done.
 ```
 
-The series must be a `series of text`, and an empty one is not a missing one — the program still
-launches, with no arguments.
+The series must be a `series of text`, and an empty one is not a missing one — the program still launches, with no arguments.
 
-**A `(` after `arguments` always opens the written-out list.** So `with arguments (argv)` is a
-list of ONE argument that happens to be a series, not the series form, and is refused as such:
+**A `(` after `arguments` always opens the written-out list.** So `with arguments (argv)` is a list of ONE argument that happens to be a series, not the series form, and is refused as such:
 
 ```cufet-refused
 Try to:
@@ -3904,11 +3185,9 @@ In case of failure:
 Done.
 ```
 
-The forms are told apart by that one token and never by the type, so that a reader can see which
-one is written without knowing what `argv` holds.
+The forms are told apart by that one token and never by the type, so that a reader can see which one is written without knowing what `argv` holds.
 
-**As a statement, it launches the program with this terminal.** Written on its own —
-`Run <program>.` — nothing is captured and nothing comes back:
+**As a statement, it launches the program with this terminal.** Written on its own — `Run <program>.` — nothing is captured and nothing comes back:
 
 ```cufet
 Try to:
@@ -3919,24 +3198,13 @@ In case of failure:
 Done.
 ```
 
-This is the same distinction the language draws everywhere else: a statement runs something for
-its **effect**, an expression for its **value** — `Cast f on (x).` beside
-`Define y as cast f on (x).` is the pair it copies.
+This is the same distinction the language draws everywhere else: a statement runs something for its **effect**, an expression for its **value** — `Cast f on (x).` beside `Define y as cast f on (x).` is the pair it copies.
 
-The difference between the two forms is **who gets the terminal**, not what happens to the text.
-The expression form hands the child a pipe, so its output arrives all at once when it exits and a
-program that draws — `vim`, `less`, `top` — has no terminal to ask about. The statement form gives
-the child this program’s own stdin and stdout, so output streams as it happens and an interactive
-program works.
+The difference between the two forms is **who gets the terminal**, not what happens to the text. The expression form hands the child a pipe, so its output arrives all at once when it exits and a program that draws — `vim`, `less`, `top` — has no terminal to ask about. The statement form gives the child this program’s own stdin and stdout, so output streams as it happens and an interactive program works.
 
-Both wait for the child, and both are fallible for the same reason — the program may not exist —
-so the statement form must be handled too. What it does **not** give back is the result record, so
-there is no exit code to read: a program that runs and exits nonzero is an ordinary outcome the
-statement form does not report.
+Both wait for the child, and both are fallible for the same reason — the program may not exist — so the statement form must be handled too. What it does **not** give back is the result record, so there is no exit code to read: a program that runs and exits nonzero is an ordinary outcome the statement form does not report.
 
-**`with the terminal` gives the child the terminal AND gives you the exit code back.** It is an
-expression, so it produces the same `result or failure` the plain `run` produces — but the child
-draws on the real screen exactly as under the statement form:
+**`with the terminal` gives the child the terminal AND gives you the exit code back.** It is an expression, so it produces the same `result or failure` the plain `run` produces — but the child draws on the real screen exactly as under the statement form:
 
 ```cufet
 Try to:
@@ -3953,28 +3221,16 @@ In case of failure:
 Done.
 ```
 
-`the output of outcome` and `the errors of outcome` are `""` here, and that is honest rather than
-arbitrary: they are empty **because** they went to the terminal instead of into a pipe. Only
-`the exit-code of outcome` carries anything, which is the whole reason the form exists — it is the
-one thing the statement form cannot give you.
+`the output of outcome` and `the errors of outcome` are `""` here, and that is honest rather than arbitrary: they are empty **because** they went to the terminal instead of into a pipe. Only `the exit-code of outcome` carries anything, which is the whole reason the form exists — it is the one thing the statement form cannot give you.
 
-The two modifiers are independent and may be written in either order —
-`run "vim" with the terminal with arguments ("notes.txt")` and
-`run "vim" with arguments ("notes.txt") with the terminal` mean the same thing — and
-`with arguments <series>` composes with it just as it does with the plain form.
+The two modifiers are independent and may be written in either order — `run "vim" with the terminal with arguments ("notes.txt")` and `run "vim" with arguments ("notes.txt") with the terminal` mean the same thing — and `with arguments <series>` composes with it just as it does with the plain form.
 
-> The child inherits **this program's own** stdin, stdout and stderr. That is a terminal when this
-> program has one, and a pipe when it does not — under CI, or when this program's own output is
-> piped somewhere. `with the terminal` is the right name for the common case, but the promise is
+> The child inherits **this program's own** stdin, stdout and stderr. That is a terminal when this program has one, and a pipe when it does not — under CI, or when this program's own output is piped somewhere. `with the terminal` is the right name for the common case, but the promise is
 > *the child gets what this program has*.
 
-A run inside a pipe cannot say `with the terminal`: a pipe carries the child's output to the next
-stage, and this sends it to the screen instead, so the two ask for the same bytes. And the
-statement form does not take it — `Run "vim" with the terminal.` is refused, because the modifier
-exists to hand back an exit code and a statement has nowhere to put one.
+A run inside a pipe cannot say `with the terminal`: a pipe carries the child's output to the next stage, and this sends it to the screen instead, so the two ask for the same bytes. And the statement form does not take it — `Run "vim" with the terminal.` is refused, because the modifier exists to hand back an exit code and a statement has nowhere to put one.
 
-**`with input <text>` feeds the child's standard input.** Without it a child reads whatever this
-program reads; with it, it reads the text you give it and then sees end of input:
+**`with input <text>` feeds the child's standard input.** Without it a child reads whatever this program reads; with it, it reads the text you give it and then sees end of input:
 
 ```cufet
 Try to:
@@ -3986,9 +3242,7 @@ In case of failure:
 Done.
 ```
 
-`with input ""` and no `with input` at all are **different**: the first hands the child an
-immediate end of input, the second leaves it reading from wherever this program reads. A child
-asked to count what it is given must see nothing rather than wait for a keyboard.
+`with input ""` and no `with input` at all are **different**: the first hands the child an immediate end of input, the second leaves it reading from wherever this program reads. A child asked to count what it is given must see nothing rather than wait for a keyboard.
 
 Two things follow from it. **A redirect is a file read:**
 
@@ -3997,8 +3251,7 @@ Define body as read all from the file "notes.txt" or pass the failure off.
 Define counted as run "wc" with arguments ("-l") with input body.
 ```
 
-**And a pipeline whose length is not known until the program runs** is an ordinary loop — which is
-what `run A | run B` cannot be, because that is written into the source:
+**And a pipeline whose length is not known until the program runs** is an ordinary loop — which is what `run A | run B` cannot be, because that is written into the source:
 
 ```cufet
 Define stages as a series of text with ("sort", "uniq", "head").
@@ -4019,10 +3272,7 @@ In case of failure:
 Done.
 ```
 
-Only the **first** stage of a written `|` pipeline may say `with input` — every later stage is
-already fed by the one before it, and a program has one standard input. And a run cannot say both
-`with input` and `with the terminal`: one hands the child the real keyboard, the other types for
-it.
+Only the **first** stage of a written `|` pipeline may say `with input` — every later stage is already fed by the one before it, and a program has one standard input. And a run cannot say both `with input` and `with the terminal`: one hands the child the real keyboard, the other types for it.
 
 So there are three forms, and the axis is who is connected to the terminal:
 
@@ -4045,29 +3295,16 @@ State "never reached".
 checking
 ```
 
-It is a statement, legal wherever one is — inside a function, a loop, or a rabbit. A caller sees
-the same status whether the program was interpreted or compiled: `cufet check.cufe` and a
-compiled `./check` both leave with what the program said.
+It is a statement, legal wherever one is — inside a function, a loop, or a rabbit. A caller sees the same status whether the program was interpreted or compiled: `cufet check.cufe` and a compiled `./check` both leave with what the program said.
 
-- **Statuses run from 0 to 255**, whole. Anything else is refused — at check time when the number
-  is written out, and where it runs when it is computed. The operating system keeps only the low
-  eight bits, so `Exit with 256.` would leave with **0** — success, from a line that plainly meant
-  otherwise. Refusing beats that silent reinterpretation, the same call the `bits` narrowing rule
-  makes.
-- **Leaving UNWINDS.** Every open block's unmakers still run on the way out, so a program
-  that chooses to leave early is not the one way out that loses an `unmaking`. A `Pull a rabbit`
-  holding a connection closes it whether the program falls off the end or exits from the middle.
+- **Statuses run from 0 to 255**, whole. Anything else is refused — at check time when the number is written out, and where it runs when it is computed. The operating system keeps only the low eight bits, so `Exit with 256.` would leave with **0** — success, from a line that plainly meant otherwise. Refusing beats that silent reinterpretation, the same call the `bits` narrowing rule makes.
+- **Leaving UNWINDS.** Every open block's unmakers still run on the way out, so a program that chooses to leave early is not the one way out that loses an `unmaking`. A `Pull a rabbit` holding a connection closes it whether the program falls off the end or exits from the middle.
 - **Nothing after it runs**, including in the blocks it is leaving through.
 - **Falling off the end is already 0**, so a bare `Exit.` is for leaving *early* and successfully.
 
-See [`examples/systems/search.cufe`](../examples/systems/search.cufe) for a worked script that
-uses the whole contract — 0 when something matched, 1 when nothing did, 2 when a file could not
-be read — which is grep's, and the reason a status has to be a status rather than a sentence.
+See [`examples/systems/search.cufe`](../examples/systems/search.cufe) for a worked script that uses the whole contract — 0 when something matched, 1 when nothing did, 2 when a file could not be read — which is grep's, and the reason a status has to be a status rather than a sentence.
 
-⚠ **1 and 2 are ambiguous when interpreted, and cannot be otherwise.** `cufet` itself leaves with
-1 for a program it refuses and 2 for a command line it does not understand, so `cufet run.cufe`
-answering 1 could be either. A compiled program has no such overlap. Every interpreter shares this;
-a script that needs the distinction should pick a status of its own above 2.
+⚠ **1 and 2 are ambiguous when interpreted, and cannot be otherwise.** `cufet` itself leaves with 1 for a program it refuses and 2 for a command line it does not understand, so `cufet run.cufe` answering 1 could be either. A compiled program has no such overlap. Every interpreter shares this; a script that needs the distinction should pick a status of its own above 2.
 
 #### Program arguments
 
@@ -4086,29 +3323,18 @@ Done.
 0
 ```
 
-Run as `cufet greet.cufe alice bob`, that prints `2`. A compiled `./greet alice bob` prints `2`
-as well, and that agreement is what shapes the rest of the rule.
+Run as `cufet greet.cufe alice bob`, that prints `2`. A compiled `./greet alice bob` prints `2` as well, and that agreement is what shapes the rest of the rule.
 
-- **The program's own name is not among them, and cannot be.** `cufet greet.cufe alice bob`
-  and `./greet alice bob` disagree about the head — `cufet` against `./greet`, with the script
-  path present in one and absent in the other. There is no definition of argument zero the two
-  could share, so it is left out rather than defined differently on each side.
-- **A series, never a `voidable`.** No arguments is an EMPTY series, so a program can walk
-  them without asking whether they are there. This is where they differ from the environment:
-  a lookup can miss, a sequence can only be short.
-- **They arrive as written.** Cufet does not parse flags — `--name value` is two arguments, and
-  what they mean is the program's business.
+- **The program's own name is not among them, and cannot be.** `cufet greet.cufe alice bob` and `./greet alice bob` disagree about the head — `cufet` against `./greet`, with the script path present in one and absent in the other. There is no definition of argument zero the two could share, so it is left out rather than defined differently on each side.
+- **A series, never a `voidable`.** No arguments is an EMPTY series, so a program can walk them without asking whether they are there. This is where they differ from the environment: a lookup can miss, a sequence can only be short.
+- **They arrive as written.** Cufet does not parse flags — `--name value` is two arguments, and what they mean is the program's business.
 - Read-only.
 
-**`arguments` is a reserved word**, so it cannot name a variable or a field. It is the one
-word in this area that is reserved rather than contextual: `the arguments` stands alone with
-nothing after it to key on, and `the X` is already how a variable named `X` may be written — so
-the two would be the same spelling in the same position.
+**`arguments` is a reserved word**, so it cannot name a variable or a field. It is the one word in this area that is reserved rather than contextual: `the arguments` stands alone with nothing after it to key on, and `the X` is already how a variable named `X` may be written — so the two would be the same spelling in the same position.
 
 #### Environment variables
 
-`the environment variable "NAME"` reads a process environment variable by name,
-returning `voidable text`:
+`the environment variable "NAME"` reads a process environment variable by name, returning `voidable text`:
 
 ```cufet
 Define home as the environment variable "HOME".
@@ -4119,9 +3345,7 @@ Define path-val as the environment variable "PATH" but void is "".
 ```
 
 - Returns `voidable text` — `void` if the variable is not set.
-- The name is any text expression (literal, variable, interpolated string, or one built with
-  `joined to`). It stops before a comparison, so `the environment variable "HOME" is void` tests
-  the variable.
+- The name is any text expression (literal, variable, interpolated string, or one built with `joined to`). It stops before a comparison, so `the environment variable "HOME" is void` tests the variable.
 - Read-only — Cufet does not expose setting environment variables.
 
 #### The current directory
@@ -4133,9 +3357,7 @@ Define here as the current directory but void is "(unknown)".
 State here.
 ```
 
-It is voidable for the same reason the environment variable is: the answer comes from the
-operating system, and the operating system is allowed to have none. In practice `void` means the
-directory was removed out from under the running process. Every ordinary program gets a value.
+It is voidable for the same reason the environment variable is: the answer comes from the operating system, and the operating system is allowed to have none. In practice `void` means the directory was removed out from under the running process. Every ordinary program gets a value.
 
 **Change it** — `The current directory becomes path.` is a statement, and a fallible one:
 
@@ -4158,33 +3380,17 @@ Failure categories, and the message each produces:
 | `permission-denied` | it exists, but you may not enter | `permission denied entering directory '<p>'` |
 | `disk-error` | anything else | `changing to the directory '<p>' failed` |
 
-- **It affects relative paths** for everything afterwards — file reads and writes, directory
-  listings, and subprocesses launched with `run`, which inherit it.
-- **A failure is recoverable.** A bad path costs you a handled failure, not the program, which is
-  what lets [`tools/shell.cufe`](../tools/shell.cufe) implement `cd` without a typo ending the
-  session.
-- **Not allowed inside a task.** A process has exactly one working directory, so changing it from
-  a task would race every other task resolving a relative path. The compiler refuses with an
-  explanation; change it in the rabbit body before starting tasks, or pass the directory in and
-  build full paths. (Reading it from a task is fine.)
+- **It affects relative paths** for everything afterwards — file reads and writes, directory listings, and subprocesses launched with `run`, which inherit it.
+- **A failure is recoverable.** A bad path costs you a handled failure, not the program, which is what lets [`tools/shell.cufe`](../tools/shell.cufe) implement `cd` without a typo ending the session.
+- **Not allowed inside a task.** A process has exactly one working directory, so changing it from a task would race every other task resolving a relative path. The compiler refuses with an explanation; change it in the rabbit body before starting tasks, or pass the directory in and build full paths. (Reading it from a task is fine.)
 
-> **Windows paths in a quoted literal need doubled backslashes.** `"C:\Windows"` is a *lexer*
-> error, because `\W` is not a recognised escape. Write `<<C:\Windows>>`, where nothing is
-> escaped at all, or `"C:\\Windows"`, or — often nicest — `"C:/Windows"`, which Windows accepts
-> everywhere Cufet passes a path through.
+> **Windows paths in a quoted literal need doubled backslashes.** `"C:\Windows"` is a *lexer* error, because `\W` is not a recognised escape. Write `<<C:\Windows>>`, where nothing is escaped at all, or `"C:\\Windows"`, or — often nicest — `"C:/Windows"`, which Windows accepts everywhere Cufet passes a path through.
 
 #### Directory traversal
 
-**List a directory** — `the contents of the directory path` returns the entries
-(files and subdirectories) inside it as a `series of text or failure`. Each entry is the
-**path you asked for, joined to the entry's name** with the platform's separator — so
-listing `"notes"` gives `notes/todo.txt`, ready to hand straight back to a file read.
-A trailing separator on what you pass is not doubled.
+**List a directory** — `the contents of the directory path` returns the entries (files and subdirectories) inside it as a `series of text or failure`. Each entry is the **path you asked for, joined to the entry's name** with the platform's separator — so listing `"notes"` gives `notes/todo.txt`, ready to hand straight back to a file read. A trailing separator on what you pass is not doubled.
 
-**The order is sorted**, ordinal, and the same on both backends. The order an operating
-system hands entries back in depends on the filesystem, so sorting defines what would
-otherwise be undefined — the same call made everywhere else a result could differ by
-machine. `.` and `..` are never included.
+**The order is sorted**, ordinal, and the same on both backends. The order an operating system hands entries back in depends on the filesystem, so sorting defines what would otherwise be undefined — the same call made everywhere else a result could differ by machine. `.` and `..` are never included.
 
 ```cufet
 Try to:
@@ -4200,8 +3406,7 @@ Done.
 
 Failure categories: `"not-found"`, `"permission-denied"`.
 
-**Path existence and kind tests** — three boolean predicates (all return `fact`,
-never fail, never void):
+**Path existence and kind tests** — three boolean predicates (all return `fact`, never fail, never void):
 
 ```cufet-fragment
 If the path "/tmp/myfile" exists:
@@ -4216,9 +3421,7 @@ Done.
 | `the path expr is a file` | the path names an existing regular file |
 | `the path expr is a directory` | the path names an existing directory |
 
-The path expression is any `text`. A path that exists but is neither a regular file
-nor a directory (device node, dangling symlink, etc.) makes `exists` true but both
-`is a file` and `is a directory` false.
+The path expression is any `text`. A path that exists but is neither a regular file nor a directory (device node, dangling symlink, etc.) makes `exists` true but both `is a file` and `is a directory` false.
 
 ---
 
@@ -4226,9 +3429,7 @@ nor a directory (device node, dangling symlink, etc.) makes `exists` true but bo
 
 ### Regions (`Pull a rabbit`)
 
-A **region** — a "rabbit" — is a block whose reference-typed values all live and die
-together. `Pull a rabbit.` opens one; `Done.` closes it and releases everything created
-inside.
+A **region** — a "rabbit" — is a block whose reference-typed values all live and die together. `Pull a rabbit.` opens one; `Done.` closes it and releases everything created inside.
 
 ```cufet
 Define totals as a series of number.
@@ -4247,8 +3448,7 @@ State totals.        ← (15)
 
 `scratch` is gone after `Done.`; `totals` is not, and the value added to it survives.
 
-A rabbit may be named. The name is a handle you can pass to a function so the callee
-allocates in *your* region:
+A rabbit may be named. The name is a handle you can pass to a function so the callee allocates in *your* region:
 
 ```cufet
 Pull a rabbit as workspace.
@@ -4259,14 +3459,9 @@ Done.
 
 #### The outward-only rule
 
-**A value may be stored somewhere longer-lived than itself, never somewhere
-shorter-lived.** That single rule is the whole safety story. The type checker enforces
-it from the static block structure — there is no garbage collector and no borrow
-checker.
+**A value may be stored somewhere longer-lived than itself, never somewhere shorter-lived.** That single rule is the whole safety story. The type checker enforces it from the static block structure — there is no garbage collector and no borrow checker.
 
-Storing outward is fine, and is what the example above does. Storing *inward* — parking
-a value in a container that will outlive the region the value came from, in a way that
-would leave the container pointing at released memory — is a compile-time error:
+Storing outward is fine, and is what the example above does. Storing *inward* — parking a value in a container that will outlive the region the value came from, in a way that would leave the container pointing at released memory — is a compile-time error:
 
 ```cufet-fragment
 Bind series of number to smuggle, given (the series of number s):
@@ -4280,28 +3475,19 @@ Pull a rabbit.
 Done.
 ```
 
-The error names the region mismatch, and it is caught even though the value was
-laundered through a function's return value.
+The error names the region mismatch, and it is caught even though the value was laundered through a function's return value.
 
-Returning a value out of a region is allowed and does the safe thing: the value stays
-valid for the caller.
+Returning a value out of a region is allowed and does the safe thing: the value stays valid for the caller.
 
 #### Two backends, one rule
 
-Interpreted, "released at `Done.`" is modelled semantically — values simply become
-unreachable and .NET's collector reclaims them whenever it likes. Compiled, the region
-is a real bump-allocated arena, thread-local, freed in one shot. A region is released on
-**every** exit from it, not only the normal one: `Done.`, `return`, `Stop`, `Skip`,
-`Suppress`, a failure unwind, an exception, an interrupt.
+Interpreted, "released at `Done.`" is modelled semantically — values simply become unreachable and .NET's collector reclaims them whenever it likes. Compiled, the region is a real bump-allocated arena, thread-local, freed in one shot. A region is released on **every** exit from it, not only the normal one: `Done.`, `return`, `Stop`, `Skip`, `Suppress`, a failure unwind, an exception, an interrupt.
 
-The rule above is what makes the compiled version safe, which is why it is enforced even
-though the interpreter would forgive breaking it.
+The rule above is what makes the compiled version safe, which is why it is enforced even though the interpreter would forgive breaking it.
 
 #### When to reach for one
 
-- **Long-running loops.** Put a rabbit *inside* the loop body and each iteration's
-  working memory is released at the end of that iteration. Without one, a compiled
-  program's allocations accumulate until the enclosing block ends.
+- **Long-running loops.** Put a rabbit *inside* the loop body and each iteration's working memory is released at the end of that iteration. Without one, a compiled program's allocations accumulate until the enclosing block ends.
 - **Concurrency.** A rabbit is also the structured-concurrency boundary — see below.
 
 ---
@@ -4310,25 +3496,15 @@ though the interpreter would forgive breaking it.
 
 #### Tasks
 
-`Have rabbit start a task: … Done.` runs a block concurrently. It must appear inside a
-rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore
-cannot outlive the region that launched it.
+`Have rabbit start a task: … Done.` runs a block concurrently. It must appear inside a rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore cannot outlive the region that launched it.
 
-⚠ **Which task runs first is not promised**, and neither is which worker takes which item.
-Compiled, each task is a thread; interpreted, tasks take turns. What is promised is everything
-the language makes certain: the join at `Done.`, a channel's order, an awaited result. Output that
-depends on the order tasks ran in may differ between runs and between the two backends.
+⚠ **Which task runs first is not promised**, and neither is which worker takes which item. Compiled, each task is a thread; interpreted, tasks take turns. What is promised is everything the language makes certain: the join at `Done.`, a channel's order, an awaited result. Output that depends on the order tasks ran in may differ between runs and between the two backends.
 
-**You can name the rabbit you are giving work to** — `Have hopper start a task: … Done.` —
-which is what a rabbit's name is for: a rabbit is an agent you summon and hand a job.
-The bare `rabbit` keyword still means the enclosing one, and the two forms mix freely.
+**You can name the rabbit you are giving work to** — `Have hopper start a task: … Done.` — which is what a rabbit's name is for: a rabbit is an agent you summon and hand a job. The bare `rabbit` keyword still means the enclosing one, and the two forms mix freely.
 
-Naming a rabbit pulled *further out* is refused. The task would be joined by that
-rabbit's `Done.`, so it would have to outlive the block it was written in. Give the work
-to the rabbit pulled in this block, or move the work out to where that rabbit lives.
+Naming a rabbit pulled *further out* is refused. The task would be joined by that rabbit's `Done.`, so it would have to outlive the block it was written in. Give the work to the rabbit pulled in this block, or move the work out to where that rabbit lives.
 
-Name a task with `as <name>` and it can `return` a value, which you collect with
-`the awaited result of <name>`:
+Name a task with `as <name>` and it can `return` a value, which you collect with `the awaited result of <name>`:
 
 ```cufet
 Pull a rabbit.
@@ -4345,8 +3521,7 @@ Done.
 21
 ```
 
-An unnamed task is fire-and-forget: it still joins at `Done.`, but any value it returns
-is dropped. Awaiting the same task twice is fine — the body runs once either way.
+An unnamed task is fire-and-forget: it still joins at `Done.`, but any value it returns is dropped. Awaiting the same task twice is fine — the body runs once either way.
 
 **A task can await another task**, so work can be staged rather than only fanned out:
 
@@ -4368,17 +3543,14 @@ Done.
 
 Several tasks may await the same task; each gets its own copy of the result.
 
-**A task can only await one declared before it**, because the name has to be in scope — which
-also means a cycle of tasks waiting on each other cannot be written, so this cannot deadlock.
-Awaiting a task declared later is a type error, not a hang.
+**A task can only await one declared before it**, because the name has to be in scope — which also means a cycle of tasks waiting on each other cannot be written, so this cannot deadlock. Awaiting a task declared later is a type error, not a hang.
 
 
 #### When a task goes wrong
 
 A task can end badly in two ways, and Cufet keeps them apart exactly as it does everywhere else.
 
-**A deliberate failure rides in the type.** A task whose body can `return a failure` has the result
-type `T or failure`, and the await must handle it — the same strict rule any fallible call obeys:
+**A deliberate failure rides in the type.** A task whose body can `return a failure` has the result type `T or failure`, and the await must handle it — the same strict rule any fallible call obeys:
 
 ```cufet
 Pull a rabbit.
@@ -4394,12 +3566,9 @@ Done.
 99
 ```
 
-Without the `but on failure` that is refused where it is written: *"this task can fail — you must
-handle the failure at the await site."*
+Without the `but on failure` that is refused where it is written: *"this task can fail — you must handle the failure at the await site."*
 
-**An exception travels to whoever awaits it.** A fault the task did not choose — a division by
-zero, an index past the end — is raised at the await, so a `Try` around the await catches it just
-as it would catch the same expression written locally:
+**An exception travels to whoever awaits it.** A fault the task did not choose — a division by zero, an index past the end — is raised at the await, so a `Try` around the await catches it just as it would catch the same expression written locally:
 
 ```cufet
 Pull a rabbit.
@@ -4419,26 +3588,19 @@ Done.
 caught: Division by zero on line 3.
 ```
 
-⚠ **An exception does not become a failure by crossing a task boundary.** `1 / 0` is an exception
-wherever it runs, and awaiting is not the one place in the language where a possible exception is
-forced into a type.
+⚠ **An exception does not become a failure by crossing a task boundary.** `1 / 0` is an exception wherever it runs, and awaiting is not the one place in the language where a possible exception is forced into a type.
 
-**And a fault nobody claimed surfaces at the rabbit's `Done.`** — reported after every task has
-been joined, so the body's output is complete first:
+**And a fault nobody claimed surfaces at the rabbit's `Done.`** — reported after every task has been joined, so the body's output is complete first:
 
-- **Reading a result takes ownership of its failure.** A task whose result was awaited is that
-  awaiter's business, so `Done.` does not announce it a second time. Catching a task's fault at the
-  await and suppressing it ends it.
+- **Reading a result takes ownership of its failure.** A task whose result was awaited is that awaiter's business, so `Done.` does not announce it a second time. Catching a task's fault at the await and suppressing it ends it.
 - A fire-and-forget task has no result to read, so its fault is never claimed and always reports.
-- Several failing tasks are reported together, in the order they were **started** — never the order
-  they failed, which would differ between a compiled run and an interpreted one.
+- Several failing tasks are reported together, in the order they were **started** — never the order they failed, which would differ between a compiled run and an interpreted one.
 
 #### Channels
 
 A channel is a typed queue for passing values between tasks. `Send <value> through
 <channel>.` puts one in; `the delivery from <channel>` takes one out, yielding
-`voidable T` — void once the channel is closed and empty, which is how a receiver knows
-to stop.
+`voidable T` — void once the channel is closed and empty, which is how a receiver knows to stop.
 
 ```cufet
 Pull a rabbit.
@@ -4461,24 +3623,19 @@ Done.
 30
 ```
 
-`Close` is idempotent; sending after a close is a runtime error. A blocked receive wakes
-when a value arrives, when the channel closes, or when the program is interrupted.
+`Close` is idempotent; sending after a close is a runtime error. A blocked receive wakes when a value arrives, when the channel closes, or when the program is interrupted.
 
 #### Composition modes
 
-A word between the article and `rabbit` says how its **tasks** compose. The rabbit's own
-statements are ordinary sequential code in every mode.
+A word between the article and `rabbit` says how its **tasks** compose. The rabbit's own statements are ordinary sequential code in every mode.
 
-- **`parallel`**: every task runs at once. This is the default, and `Pull a rabbit.` means
-  `Pull a parallel rabbit.`
-- **`sequential`**: one task at a time, in the order they were started. Each starts once the one
-  before it has ended.
+- **`parallel`**: every task runs at once. This is the default, and `Pull a rabbit.` means `Pull a parallel rabbit.`
+- **`sequential`**: one task at a time, in the order they were started. Each starts once the one before it has ended.
 - **`automatic`**: every task waits on a channel, and only **one** of them runs.
 
 None of the three words is reserved. Each is a mode only where `rabbit` follows it.
 
-**An automatic rabbit** is how a program waits on several channels at once and takes whichever
-has something. Each of its tasks names the channel it waits on and what to call the delivery:
+**An automatic rabbit** is how a program waits on several channels at once and takes whichever has something. Each of its tasks names the channel it waits on and what to call the delivery:
 
 ```cufet
 Pull a rabbit.
@@ -4505,20 +3662,10 @@ packing kale
 packing carrots
 ```
 
-- The rabbit runs its body, then waits at its `Done.` until one of the channels has something,
-  runs the matching task with it, and ends. The loop around it is what keeps it serving.
-- **The chosen task runs as the rabbit's own code**, at its `Done.`, as an Occam ALT's branch
-  does. Nothing runs beside it, so unlike any other task it **may change the names around it**.
-  That is also why it cannot `return`, and cannot use a name from a block that has ended by
-  `Done.`, such as the loop that offered it.
-- **Whatever was sent first wins.** When several channels hold something, the task that runs is
-  the one whose delivery went in earliest, across all of them. The order the tasks are written in
-  does not matter. Ticket 17 was sent before either order, so it is handled first.
-- **A closed, empty channel is ready too.** Its task runs, and the delivery is void, exactly as
-  `the delivery from` gives once a channel is closed and empty. So the delivery is `voidable T`,
-  and the task handles the void case. A closed channel counts as of the moment it was closed, so
-  it stays ready on every later round. A loop stops offering that task once it has heard the
-  void:
+- The rabbit runs its body, then waits at its `Done.` until one of the channels has something, runs the matching task with it, and ends. The loop around it is what keeps it serving.
+- **The chosen task runs as the rabbit's own code**, at its `Done.`, as an Occam ALT's branch does. Nothing runs beside it, so unlike any other task it **may change the names around it**. That is also why it cannot `return`, and cannot use a name from a block that has ended by `Done.`, such as the loop that offered it.
+- **Whatever was sent first wins.** When several channels hold something, the task that runs is the one whose delivery went in earliest, across all of them. The order the tasks are written in does not matter. Ticket 17 was sent before either order, so it is handled first.
+- **A closed, empty channel is ready too.** Its task runs, and the delivery is void, exactly as `the delivery from` gives once a channel is closed and empty. So the delivery is `voidable T`, and the task handles the void case. A closed channel counts as of the moment it was closed, so it stays ready on every later round. A loop stops offering that task once it has heard the void:
 
 ```cufet
 Pull a rabbit.
@@ -4582,20 +3729,13 @@ first
 second
 ```
 
-Every task still runs when one fails, and the faults are reported together at `Done.`, as a
-parallel rabbit's are. A task that fails closes every channel it captured, as if it had written
-`Close`: whoever waits on one gets void, as from any closed channel, and goes on to `Done.`, where
-the fault is reported.
+Every task still runs when one fails, and the faults are reported together at `Done.`, as a parallel rabbit's are. A task that fails closes every channel it captured, as if it had written `Close`: whoever waits on one gets void, as from any closed channel, and goes on to `Done.`, where the fault is reported.
 
 #### What crosses a boundary, and what a task may touch
 
-**Values are deep-copied when they cross between tasks** — both on a channel send and
-when a task captures a variable from outside itself. Each side ends up owning its own
-memory, which is what keeps one task's region from becoming entangled with another's.
+**Values are deep-copied when they cross between tasks** — both on a channel send and when a task captures a variable from outside itself. Each side ends up owning its own memory, which is what keeps one task's region from becoming entangled with another's.
 
-A task may freely **read** anything from the enclosing scope, of any type. A task may
-**not change** something it captured — and this holds for a plain number just as much as
-for a series:
+A task may freely **read** anything from the enclosing scope, of any type. A task may **not change** something it captured — and this holds for a plain number just as much as for a series:
 
 ```cufet-refused
 Define data as a series of number with (1, 2, 3).
@@ -4610,15 +3750,9 @@ State data.
 State tally.
 ```
 
-Both backends refuse this when the program is checked, because something outside the task
-reads the name afterwards. The reason is worth knowing: the task holds its own copy, so the
-change could never be seen outside — and two tasks doing it at once is a straightforward data
-race. A change nothing outside reads is not refused, since it cannot be seen; `cufet build`
-warns about it. In an automatic rabbit a task may change what it uses. Send the result back through a channel, or
-`return` it from a named task and await it.
+Both backends refuse this when the program is checked, because something outside the task reads the name afterwards. The reason is worth knowing: the task holds its own copy, so the change could never be seen outside — and two tasks doing it at once is a straightforward data race. A change nothing outside reads is not refused, since it cannot be seen; `cufet build` warns about it. In an automatic rabbit a task may change what it uses. Send the result back through a channel, or `return` it from a named task and await it.
 
-This is about *writing* to a capture, not about captures being restricted. Reading one is
-free, and a counter the task defines itself is a local, not a capture:
+This is about *writing* to a capture, not about captures being restricted. Reading one is free, and a counter the task defines itself is a local, not a capture:
 
 ```cufet
 Define step as 5.
@@ -4641,16 +3775,9 @@ Done.
 
 #### Interpreted versus compiled
 
-This is the one part of the language where the two backends deliberately differ.
-Interpreted, tasks are **cooperative**: one runs at a time, interleaving only at
-`Yield.` and at blocking channel operations. Compiled, each task is a **real OS thread**
-and they run genuinely in parallel.
+This is the one part of the language where the two backends deliberately differ. Interpreted, tasks are **cooperative**: one runs at a time, interleaving only at `Yield.` and at blocking channel operations. Compiled, each task is a **real OS thread** and they run genuinely in parallel.
 
-So **no particular interleaving is specified**. Write concurrent programs to depend on
-the aggregate result, not the order — the same discipline the compiler's own tests use,
-which assert order-independent invariants and run under ThreadSanitizer. See
-[GRAMMAR.md](GRAMMAR.md) for the cooperative scheduler's specific artefacts, including
-why fan-out work-queues do not distribute when interpreted.
+So **no particular interleaving is specified**. Write concurrent programs to depend on the aggregate result, not the order — the same discipline the compiler's own tests use, which assert order-independent invariants and run under ThreadSanitizer. See [GRAMMAR.md](GRAMMAR.md) for the cooperative scheduler's specific artefacts, including why fan-out work-queues do not distribute when interpreted.
 
 ---
 
@@ -4686,28 +3813,18 @@ kept 2
 kept 4
 ```
 
-A stage ends its output stream by returning, which tells the next stage downstream that
-the values have run out. Stages need no enclosing rabbit — a pipe spawns its stages,
-joins them, and cleans up its channels on its own.
+A stage ends its output stream by returning, which tells the next stage downstream that the values have run out. Stages need no enclosing rabbit — a pipe spawns its stages, joins them, and cleans up its channels on its own.
 
-Interpreted, a pipe is buffered: each stage runs to completion and the next drains the
-buffer. Compiled, every stage is its own thread and values stream through as produced.
-The observable output order is the same either way, because each channel is FIFO.
+Interpreted, a pipe is buffered: each stage runs to completion and the next drains the buffer. Compiled, every stage is its own thread and values stream through as produced. The observable output order is the same either way, because each channel is FIFO.
 
 #### Restrictions
 
-- **A pipe is all function stages or all `run` stages** — the subprocess form
-  (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function
-  stages. Doing so is rejected with a message naming the offending stage.
-- **A stage function may be used at one input element type** across the whole program.
-  Feeding the same function numbers in one pipe and text in another is a type error.
+- **A pipe is all function stages or all `run` stages** — the subprocess form (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function stages. Doing so is rejected with a message naming the offending stage.
+- **A stage function may be used at one input element type** across the whole program. Feeding the same function numbers in one pipe and text in another is a type error.
 
 #### How stage types are checked
 
-`for each n from the input:` gives the iterator no type, so a stage's input type can only
-come from the stage before it. The type checker walks each pipe left to right, carrying
-every stage's output type into the next as its input, and checks that stage's body
-against it:
+`for each n from the input:` gives the iterator no type, so a stage's input type can only come from the stage before it. The type checker walks each pipe left to right, carrying every stage's output type into the next as its input, and checks that stage's body against it:
 
 ```cufet-refused
 Bind void to emit-nums:
@@ -4723,18 +3840,13 @@ Done.
 emit-nums | shout.
 ```
 
-The consequence to be aware of: **a consumer body is checked at the pipe, not where it is
-written.** A stage function never used in a pipe has an unchecked `from the input` body.
-And stages reached indirectly — a lambda, or a function held in a variable — stop the
-chain, leaving stages after them unchecked rather than wrongly reported.
+The consequence to be aware of: **a consumer body is checked at the pipe, not where it is written.** A stage function never used in a pipe has an unchecked `from the input` body. And stages reached indirectly — a lambda, or a function held in a variable — stop the chain, leaving stages after them unchecked rather than wrongly reported.
 
 ---
 
 ### Signal handling
 
-Cufet provides **cooperative (poll-based) interrupt handling**. When the process
-receives `SIGINT` (e.g. Ctrl+C), a flag is set; the program checks it at controlled
-points:
+Cufet provides **cooperative (poll-based) interrupt handling**. When the process receives `SIGINT` (e.g. Ctrl+C), a flag is set; the program checks it at controlled points:
 
 ```cufet
 While 1 is 1, repeat:
@@ -4750,37 +3862,21 @@ While 1 is 1, repeat:
 Done.
 ```
 
-- **`an interrupt is requested`** — `fact`; true when a `SIGINT` has arrived
-  since the last `Acknowledge the interrupt.` (or since program start). Stays true
-  until acknowledged.
-- **`Acknowledge the interrupt.`** — statement; clears the pending interrupt flag.
-  Subsequent checks return false until the next `SIGINT`.
-- **`Yield.`** — yields to the scheduler and acts as an interrupt checkpoint.
-  Blocked `the delivery from` and `the awaited result of` also wake on interrupt, so
-  a program that yields or blocks naturally is interruptible without polling
-  `an interrupt is requested`.
+- **`an interrupt is requested`** — `fact`; true when a `SIGINT` has arrived since the last `Acknowledge the interrupt.` (or since program start). Stays true until acknowledged.
+- **`Acknowledge the interrupt.`** — statement; clears the pending interrupt flag. Subsequent checks return false until the next `SIGINT`.
+- **`Yield.`** — yields to the scheduler and acts as an interrupt checkpoint. Blocked `the delivery from` and `the awaited result of` also wake on interrupt, so a program that yields or blocks naturally is interruptible without polling `an interrupt is requested`.
 
 #### How far an interrupt reaches
 
 The polling constructs above behave identically on both backends.
 
-**A program that never mentions interrupts is interrupted for you.** If neither
-`an interrupt is requested` nor `Acknowledge the interrupt.` appears anywhere in it,
-Ctrl-C stops it: interpreted, every statement is a checkpoint; compiled, the default
-signal disposition applies. Either way the program ends and exits 130.
+**A program that never mentions interrupts is interrupted for you.** If neither `an interrupt is requested` nor `Acknowledge the interrupt.` appears anywhere in it, Ctrl-C stops it: interpreted, every statement is a checkpoint; compiled, the default signal disposition applies. Either way the program ends and exits 130.
 
-**A program that does mention them is in charge of its own.** Ctrl-C then only sets the
-flag, and nothing unwinds until the program polls — which is the entire point of
-cooperative handling, and the reason the rule is decided from the whole program rather
-than statement by statement. A poll anywhere puts you in charge everywhere.
+**A program that does mention them is in charge of its own.** Ctrl-C then only sets the flag, and nothing unwinds until the program polls — which is the entire point of cooperative handling, and the reason the rule is decided from the whole program rather than statement by statement. A poll anywhere puts you in charge everywhere.
 
-The practical consequence, if you handle interrupts: a tight loop that contains no
-`Yield.`, no blocking call and no poll cannot be interrupted mid-loop. **A second Ctrl-C
-always terminates**, so a program in that state is never unkillable from its terminal.
+The practical consequence, if you handle interrupts: a tight loop that contains no `Yield.`, no blocking call and no poll cannot be interrupted mid-loop. **A second Ctrl-C always terminates**, so a program in that state is never unkillable from its terminal.
 
-**Compiled, interruption is genuinely preemptive.** The runtime installs a real
-`sigaction` handler whose only job is to set a flag (so it is async-signal-safe), and
-each thread establishes a landing pad it unwinds to at its next checkpoint. In practice:
+**Compiled, interruption is genuinely preemptive.** The runtime installs a real `sigaction` handler whose only job is to set a flag (so it is async-signal-safe), and each thread establishes a landing pad it unwinds to at its next checkpoint. In practice:
 
 | Situation | Interpreted | Compiled |
 |---|---|---|
@@ -4791,14 +3887,9 @@ each thread establishes a landing pad it unwinds to at its next checkpoint. In p
 | Inside a running task | interruptible at its checkpoints | interruptible; the task unwinds, its unmakers run, its files close, and the rabbit reaps it at the join |
 | Waiting at a rabbit's `Done.` for tasks | n/a | the wait ends as its tasks unwind, and the program then tears down |
 
-An interrupt that is never acknowledged tears the program down cleanly — open files are
-flushed and closed, channels freed, regions released — and exits with status 130, the
-conventional `128 + SIGINT`.
+An interrupt that is never acknowledged tears the program down cleanly — open files are flushed and closed, channels freed, regions released — and exits with status 130, the conventional `128 + SIGINT`.
 
-Handling signals **other than `SIGINT`** is not a language feature on either backend.
-Note also that arithmetic faults never arrive as `SIGFPE`: `number` is a software
-decimal, so division by zero is a checked condition raised as an ordinary catchable
-Cufet exception. See the error-handling section.
+Handling signals **other than `SIGINT`** is not a language feature on either backend. Note also that arithmetic faults never arrive as `SIGFPE`: `number` is a software decimal, so division by zero is a checked condition raised as an ordinary catchable Cufet exception. See the error-handling section.
 
 ---
 
@@ -4806,9 +3897,7 @@ Cufet exception. See the error-handling section.
 
 ### Modules (`Pull`)
 
-**A module is an object that says it is one, and `Pull` brings it into scope.** That is the
-whole idea. A book is a module that ships with the language; there is no privileged
-category.
+**A module is an object that says it is one, and `Pull` brings it into scope.** That is the whole idea. A book is a module that ships with the language; there is no privileged category.
 
 An object declares itself pullable by conforming to `module`:
 
@@ -4824,12 +3913,9 @@ Pull greeting-kit.
 Done.
 ```
 
-`module` is a **marker** — it requires no methods at all. It exists so that being pullable
-is something an author *claims* rather than something every object turns out to have. An
-object that does not conform is refused at the pull site, and the message names the fix.
+`module` is a **marker** — it requires no methods at all. It exists so that being pullable is something an author *claims* rather than something every object turns out to have. An object that does not conform is refused at the pull site, and the message names the fix.
 
-**Articles are noise**, so `Pull greeting-kit.` and `Pull a greeting-kit.` are the same
-statement, and the name can be aliased exactly as a rabbit's can:
+**Articles are noise**, so `Pull greeting-kit.` and `Pull a greeting-kit.` are the same statement, and the name can be aliased exactly as a rabbit's can:
 
 ```cufet-fragment
 Pull greeting-kit as kit.
@@ -4839,9 +3925,7 @@ Done.
 
 `Pull a rabbit.` is this same form, with a name the language ships.
 
-**A module may live in another file.** A pull looks for a bundled book, then for a module defined
-here, then for `‹name›.cufe` **beside the file that pulls it**, and finally in the project's shared
-`books` folder:
+**A module may live in another file.** A pull looks for a bundled book, then for a module defined here, then for `‹name›.cufe` **beside the file that pulls it**, and finally in the project's shared `books` folder:
 
 ```cufet-fragment
 Pull greeting-kit.                  ← loads greeting-kit.cufe if nothing here is called that
@@ -4849,12 +3933,9 @@ Pull greeting-kit.                  ← loads greeting-kit.cufe if nothing here 
 Done.
 ```
 
-**Beside the file that pulls it** — which, when one book pulls another, means beside *that book*
-rather than beside whatever program started things. A folder holding a book and what it needs works
-wherever you put it.
+**Beside the file that pulls it** — which, when one book pulls another, means beside *that book* rather than beside whatever program started things. A folder holding a book and what it needs works wherever you put it.
 
-**A project is a directory with a `blueprint.cufe` in it**, found by walking up from the file. Books
-that more than one of its programs need go in `books/` at the root:
+**A project is a directory with a `blueprint.cufe` in it**, found by walking up from the file. Books that more than one of its programs need go in `books/` at the root:
 
 ```
 myproject/
@@ -4867,24 +3948,15 @@ myproject/
         game.cufe
 ```
 
-**Local wins.** A `canvas.cufe` sitting beside `paint.cufe` is the one `paint` gets, and `game`
-still gets the project's. The shared folder is a default, not a ceiling.
+**Local wins.** A `canvas.cufe` sitting beside `paint.cufe` is the one `paint` gets, and `game` still gets the project's. The shared folder is a default, not a ceiling.
 
-Only the blueprint's *location* is read; it is never run. Finding a file is a walk up the tree,
-and `cufet check`, the editor and a plain `cufet run` all resolve pulls without executing anything.
-No blueprint above a file means no project, and a pull then looks only beside the pulling file —
-so a loose `.cufe` anywhere on disk keeps meaning exactly what it meant.
+Only the blueprint's *location* is read; it is never run. Finding a file is a walk up the tree, and `cufet check`, the editor and a plain `cufet run` all resolve pulls without executing anything. No blueprint above a file means no project, and a pull then looks only beside the pulling file — so a loose `.cufe` anywhere on disk keeps meaning exactly what it meant.
 
-**Either spelling reaches a file.** `Pull a book on ‹name›.` and `Pull a ‹name›.` both load one;
-which you write depends on what the thing IS, not on where it lives — see
-[Books and modules](#books-and-modules) below.
+**Either spelling reaches a file.** `Pull a book on ‹name›.` and `Pull a ‹name›.` both load one; which you write depends on what the thing IS, not on where it lives — see [Books and modules](#books-and-modules) below.
 
-That file declares its module the same way any file would, and nothing else changes: members are
-reached through the name, and the binding ends at `Done.` A module may pull another; a ring of
-them is refused, and the message names the ring.
+That file declares its module the same way any file would, and nothing else changes: members are reached through the name, and the binding ends at `Done.` A module may pull another; a ring of them is refused, and the message names the ring.
 
-**A file’s top level belongs to that file.** What a loaded file declares beside its module — a
-helper function, a constant, a type — is reachable inside that file and nowhere else:
+**A file’s top level belongs to that file.** What a loaded file declares beside its module — a helper function, a constant, a type — is reachable inside that file and nowhere else:
 
 ```cufet-fragment
 Pull a book on kit.
@@ -4893,15 +3965,11 @@ Done.
 State cast helper on (10).             ← refused: kit.cufe’s own helper
 ```
 
-So a book author keeps working material without marking anything private, and two books may
-each have a `helper` without colliding. There is no `private` keyword — for a PULLED book, the
-file is what hides. Inside a project it is the directory; see below.
+So a book author keeps working material without marking anything private, and two books may each have a `helper` without colliding. There is no `private` keyword — for a PULLED book, the file is what hides. Inside a project it is the directory; see below.
 
 #### A project, and its directories
 
-**A project is a directory tree with `blueprint.cufe` at its root**, and inside one **each
-directory is a namespace named after itself**. The files of a directory share a single top-level
-scope, and nothing is pulled between them:
+**A project is a directory tree with `blueprint.cufe` at its root**, and inside one **each directory is a namespace named after itself**. The files of a directory share a single top-level scope, and nothing is pulled between them:
 
 ```cufet-fragment
 Bind number to width:                  ← tools/snake/board.cufe
@@ -4912,41 +3980,27 @@ Done.
 State "the field is {cast width} across".   ← tools/snake/snake.cufe, no pull
 ```
 
-Another directory of the same project is reached by **qualifying** it — the directory's own name,
-and the member you want:
+Another directory of the same project is reached by **qualifying** it — the directory's own name, and the member you want:
 
 ```cufet-fragment
 State cast terminals's read-key.       ← tools/snake/snake.cufe reaching tools/terminals/
 ```
 
-**A folder's files already are a group of declarations under one name.** `and book` said that a
-second time, and a `Pull` between two files of one folder said it a third. Books, modules and
-`Pull` all still work inside a project and nothing refuses them — there is simply nothing left for
-one to do. What they are FOR is a book in `books/`, which is somebody else's code, and a region's
-lifetime: both are boundaries a qualification cannot cross.
+**A folder's files already are a group of declarations under one name.** `and book` said that a second time, and a `Pull` between two files of one folder said it a third. Books, modules and `Pull` all still work inside a project and nothing refuses them — there is simply nothing left for one to do. What they are FOR is a book in `books/`, which is somebody else's code, and a region's lifetime: both are boundaries a qualification cannot cross.
 
-**What a directory offers is what its files DECLARE** — functions, object types and interfaces,
-plus any `permanently` constant. A plain `Define` at a file's top level is a value binding in
-that file's own body, not a name the directory hands out; two programs in one directory may each
-have their own `Define asking as …` and neither sees the other's.
+**What a directory offers is what its files DECLARE** — functions, object types and interfaces, plus any `permanently` constant. A plain `Define` at a file's top level is a value binding in that file's own body, not a name the directory hands out; two programs in one directory may each have their own `Define asking as …` and neither sees the other's.
 
-⚠ **Only the file you RUN runs.** A neighbour contributes its declarations and nothing else, which
-is why two programs may share a directory — each of them starts something on its last line.
+⚠ **Only the file you RUN runs.** A neighbour contributes its declarations and nothing else, which is why two programs may share a directory — each of them starts something on its last line.
 
-**A repeated top-level name within one directory is refused**, naming both files. There is
-nothing between them to keep two apart, so the second would silently replace the first.
+**A repeated top-level name within one directory is refused**, naming both files. There is nothing between them to keep two apart, so the second would silently replace the first.
 
-**A name that is also a directory of the project is refused**, because `terminals's read-key`
-would then have two readings. A directory cannot qualify ITSELF: inside `tools/terminals/`, its
-own names are already in scope, so write `put` rather than `terminals's put`.
+**A name that is also a directory of the project is refused**, because `terminals's read-key` would then have two readings. A directory cannot qualify ITSELF: inside `tools/terminals/`, its own names are already in scope, so write `put` rather than `terminals's put`.
 
-**No blueprint above a file means no project**, and everything above is then exactly as it was:
-a loose `.cufe` has no neighbours and pulls its books beside itself.
+**No blueprint above a file means no project**, and everything above is then exactly as it was: a loose `.cufe` has no neighbours and pulls its books beside itself.
 
 #### Drawing the tree
 
-A folder is two things by default: how files are organised, and a namespace wall. **The blueprint
-may draw the project's tree** to say which, for every folder with Cufet source in it:
+A folder is two things by default: how files are organised, and a namespace wall. **The blueprint may draw the project's tree** to say which, for every folder with Cufet source in it:
 
 ```cufet-fragment
 Pull a book on blueprints.
@@ -4963,35 +4017,20 @@ terminals
 Done.
 ```
 
-**A folder at the left edge is its own namespace; one indented under another belongs to it.** A
-folded folder keeps its own names and sees the folders above it: a file in `front-end/checker/`
-reaches what `checker/` declares and what `front-end/` declares, by their plain names. A sibling —
-`front-end/parser/` — is reached by qualifying it, `parser's program-tree`, the same possessive that crosses
-into another namespace. So every name written bare is found by walking UP the tree from the file.
-`snake` and `terminals` stay walls, as before.
+**A folder at the left edge is its own namespace; one indented under another belongs to it.** A folded folder keeps its own names and sees the folders above it: a file in `front-end/checker/` reaches what `checker/` declares and what `front-end/` declares, by their plain names. A sibling — `front-end/parser/` — is reached by qualifying it, `parser's program-tree`, the same possessive that crosses into another namespace. So every name written bare is found by walking UP the tree from the file. `snake` and `terminals` stay walls, as before.
 
-- **Siblings may share a name**; a folder may not declare one that a folder above it already has —
-  the nearer would win without a word, which is the reason a local has to say `a shadow`.
-- **A local may take a sibling's function name**, since that function is not a name the file sees
-  bare.
+- **Siblings may share a name**; a folder may not declare one that a folder above it already has — the nearer would win without a word, which is the reason a local has to say `a shadow`.
+- **A local may take a sibling's function name**, since that function is not a name the file sees bare.
 - **From outside**, `front-end's …` reaches what `front-end/` itself declares.
 
 - **Folders only.** The filesystem lists the files; a file joins its folder by being there.
-- **Every folder, once there is a tree** — every folder with Cufet source in it or beneath it, so
-  the drawing can be trusted to be the whole project. Folders with no Cufet source (build output,
-  `.git`) are not drawn, and `books/` belongs to the pins.
-- **Read, never run.** `tree` must be `Return` of a written-out text; anything else in its body is
-  refused, because resolving a name executes nothing.
--**The drawing is read strictly**, since it is the one place indentation means something: tabs
-  mixed with spaces, an indent matching no level above it, a folder that is not there, a folder drawn
-  twice and a source folder left out are each refused, on the drawing's line.
+- **Every folder, once there is a tree** — every folder with Cufet source in it or beneath it, so the drawing can be trusted to be the whole project. Folders with no Cufet source (build output, `.git`) are not drawn, and `books/` belongs to the pins.
+- **Read, never run.** `tree` must be `Return` of a written-out text; anything else in its body is refused, because resolving a name executes nothing. -**The drawing is read strictly**, since it is the one place indentation means something: tabs mixed with spaces, an indent matching no level above it, a folder that is not there, a folder drawn twice and a source folder left out are each refused, on the drawing's line.
 - **No tree, no change** — every folder is its own namespace.
 
 #### What a module carries
 
-**A module may hold TYPE declarations as well as members**, and that is the only way a type crosses
-a file boundary — a file's top level is private, and an object body otherwise takes only `Bind`,
-`Get` and `Set`:
+**A module may hold TYPE declarations as well as members**, and that is the only way a type crosses a file boundary — a file's top level is private, and an object body otherwise takes only `Bind`, `Get` and `Set`:
 
 ```cufet-fragment
 Define object shapes with () and module:
@@ -5007,8 +4046,7 @@ Define object shapes with () and module:
 Done.
 ```
 
-Pulling it brings the type into scope **by its short name**, for the length of the block — the same
-way `matrix` arrives with `collections`:
+Pulling it brings the type into scope **by its short name**, for the length of the block — the same way `matrix` arrives with `collections`:
 
 ```cufet-fragment
 Pull a shapes.
@@ -5019,21 +4057,15 @@ Done.
 Define there as a new point { the across 1, the up 1 }.      ← refused: not in scope
 ```
 
-**Members are what an object HAS; declarations are what a module CARRIES.** A type is not a
-member — it is not reached with `'s` and no interface can require one — so only a module may carry
-one, and an ordinary object that tries is refused with a message naming the fix.
+**Members are what an object HAS; declarations are what a module CARRIES.** A type is not a member — it is not reached with `'s` and no interface can require one — so only a module may carry one, and an ordinary object that tries is refused with a message naming the fix.
 
 Two modules may each carry a `point` without colliding.
 
-The files are resolved and compiled **together**, as one program. Cufet has no separate
-compilation, and multi-file is about writing a program across files rather than building them
-independently.
+The files are resolved and compiled **together**, as one program. Cufet has no separate compilation, and multi-file is about writing a program across files rather than building them independently.
 
 #### Books and modules
 
-**A book is a module that owns no LIFETIME** — what another language would have made a header
-file. It says so with `and book`, and every book is a module. The surface then reads the
-difference: you consult a book, and you have one of a module.
+**A book is a module that owns no LIFETIME** — what another language would have made a header file. It says so with `and book`, and every book is a module. The surface then reads the difference: you consult a book, and you have one of a module.
 
 ```cufet
 Pull a book on math.
@@ -5041,15 +4073,11 @@ Pull a book on math.
 Done.
 ```
 
-`Pull math.` is refused, and so is `Pull a book on ‹a module you hold one of›.` Pulling is one
-mechanism and asks the same question everywhere, but the surface says which KIND of thing you are
-pulling. The noun is what reads: *a book on math* is English, *a math* is not.
+`Pull math.` is refused, and so is `Pull a book on ‹a module you hold one of›.` Pulling is one mechanism and asks the same question everywhere, but the surface says which KIND of thing you are pulling. The noun is what reads: *a book on math* is English, *a math* is not.
 
-Nothing about the bundled books is privileged here — `math` is a book because it says it is one,
-and anybody's module can say the same.
+Nothing about the bundled books is privileged here — `math` is a book because it says it is one, and anybody's module can say the same.
 
-**A region is a module that OWNS one.** It says so with `and region`, and pulling it opens a
-lifetime that its `Done.` closes — values made inside live in that region and are gone after:
+**A region is a module that OWNS one.** It says so with `and region`, and pulling it opens a lifetime that its `Done.` closes — values made inside live in that region and are gone after:
 
 ```cufet
 Define object workspace with () and region.
@@ -5060,10 +4088,7 @@ Pull workspace as bench.
 Done.
 ```
 
-**A rabbit is one of these, not an exception to them.** `Prelude/rabbit.cufe` says
-`and region` like any other, so the thing a rabbit does is a thing the language offers rather than
-a power one built-in type was given. A region you wrote can be told to bury, and the stash it
-hands back is an ordinary `stash of T`:
+**A rabbit is one of these, not an exception to them.** `Prelude/rabbit.cufe` says `and region` like any other, so the thing a rabbit does is a thing the language offers rather than a power one built-in type was given. A region you wrote can be told to bury, and the stash it hands back is an ordinary `stash of T`:
 
 ```cufet-fragment
 Bind number to counting-up, given (the workspace bench, the number first-value):
@@ -5075,20 +4100,13 @@ Bind number to counting-up, given (the workspace bench, the number first-value):
 Done.
 ```
 
-**The region rules are the rabbit's rules, because they are one set of rules.** A value made
-inside a region may not be stored where it would outlive it — *"this value lives in a
-shorter-lived region than its destination"* — and that is enforced for your region exactly as it
-is for a rabbit.
+**The region rules are the rabbit's rules, because they are one set of rules.** A value made inside a region may not be stored where it would outlive it — *"this value lives in a shorter-lived region than its destination"* — and that is enforced for your region exactly as it is for a rabbit.
 
-**`and book and region` is refused.** A book owns no lifetime and a region is nothing but one,
-so they are opposite claims. `and module and region` is allowed but says one thing twice.
+**`and book and region` is refused.** A book owns no lifetime and a region is nothing but one, so they are opposite claims. `and module and region` is allowed but says one thing twice.
 
-`Pull books on ‹a›, and ‹b›.` applies one spelling to every name, so all of them must be books.
-A book and a module you hold one of are pulled by different words, so they nest rather than
-sharing a statement.
+`Pull books on ‹a›, and ‹b›.` applies one spelling to every name, so all of them must be books. A book and a module you hold one of are pulled by different words, so they nest rather than sharing a statement.
 
-**The spelling must match, and the refusal says which way round it went.** A bundled book pulled
-with the plain form:
+**The spelling must match, and the refusal says which way round it went.** A bundled book pulled with the plain form:
 
 ```cufet-refused
 Pull math.
@@ -5122,8 +4140,7 @@ Here on line 5, you're trying to pull 'trigonometry' as though you had one of it
 Write 'Pull a book on trigonometry.' instead.
 ```
 
-And a module pulled as a book, which is the other direction — note that the fix offers both ways
-out, because only the author knows which one is meant:
+And a module pulled as a book, which is the other direction — note that the fix offers both ways out, because only the author knows which one is meant:
 
 ```cufet-refused
 Define object ledger-kit with () and module:
@@ -5142,8 +4159,7 @@ Here on line 5, you're trying to pull 'ledger-kit' as a book.
 Write 'Pull a ledger-kit.' instead — or add 'and book' to its definition if it owns no lifetime.
 ```
 
-**Saying both is refused**, in either order. A book is already a module, so the pair adds nothing
-and reads as a claim to be both kinds at once:
+**Saying both is refused**, in either order. A book is already a module, so the pair adds nothing and reads as a claim to be both kinds at once:
 
 ```cufet-refused
 Define object almanac with () and book and module:
@@ -5162,9 +4178,7 @@ Here on line 1, you're trying to declare 'almanac' as a book and a module at onc
 Say 'and book' on its own if 'almanac' owns no lifetime, or 'and module' on its own if it owns one.
 ```
 
-**Pulling instantiates.** `Pull a rabbit as hopper.` makes a region rather than naming a shared
-one, and a module is the same — so a module with fields is refused, because a pull site has
-nowhere to put their values. Build one of those with `a new <type> { … }` instead.
+**Pulling instantiates.** `Pull a rabbit as hopper.` makes a region rather than naming a shared one, and a module is the same — so a module with fields is refused, because a pull site has nowhere to put their values. Build one of those with `a new <type> { … }` instead.
 
 A pull is a **scope**: the binding is gone after `Done.`
 
@@ -5172,13 +4186,10 @@ A pull is a **scope**: the binding is gone after `Done.`
 
 Books have a reference of their own: **[BOOKS.md](BOOKS.md)**.
 
-- [Books (the standard library)](BOOKS.md#books-the-standard-library) — `math`, `collections`
-  and `chance`, and what pulling one gives you
+- [Books (the standard library)](BOOKS.md#books-the-standard-library) — `math`, `collections` and `chance`, and what pulling one gives you
 - [Matrix](BOOKS.md#matrix) — a `collections` member, documented with the book it comes from
-- [Foreign source (`axiom`)](BOOKS.md#foreign-source-axiom) — `Pull a book on the c-language.`
-  is a book with no members: it admits C source held as a value
-- [Patterns (`regex`)](BOOKS.md#patterns-regex) — `Pull a book on regex.` admits patterns in
-  brackets, read at check time rather than when the line runs
+- [Foreign source (`axiom`)](BOOKS.md#foreign-source-axiom) — `Pull a book on the c-language.` is a book with no members: it admits C source held as a value
+- [Patterns (`regex`)](BOOKS.md#patterns-regex) — `Pull a book on regex.` admits patterns in brackets, read at check time rather than when the line runs
 
 ---
 
@@ -5186,9 +4197,7 @@ Books have a reference of their own: **[BOOKS.md](BOOKS.md)**.
 
 ### Compiling to a native binary
 
-Cufet runs two ways. Interpreted, it executes directly. Compiled, it emits C, invokes
-`gcc`, and produces a native executable with no managed runtime — no .NET, no garbage
-collector, no interpreter loop.
+Cufet runs two ways. Interpreted, it executes directly. Compiled, it emits C, invokes `gcc`, and produces a native executable with no managed runtime — no .NET, no garbage collector, no interpreter loop.
 
 ```
 cufet program.cufe                  run it (interpreted)
@@ -5200,8 +4209,7 @@ cufet pulls program.cufe            list the FILES it brings in
 cufet page book.cufe                write a reader's page for the book in it
 ```
 
-**`pulls` exists so a blueprint need not list dependencies by hand.** It prints one
-`<file>: <pulled>` line per pair, always prefixed, however many files you ask about:
+**`pulls` exists so a blueprint need not list dependencies by hand.** It prints one `<file>: <pulled>` line per pair, always prefixed, however many files you ask about:
 
 ```
 $ cufet pulls shell.cufe repl.cufe
@@ -5211,47 +4219,23 @@ repl.cufe: shell.cufe
 repl.cufe: terminals/terminals.cufe
 ```
 
-**A NEIGHBOUR is a dependency too**, which is why each of those two names the other: they share
-a directory, so each is part of the other's program and a change to one really does make the
-other's build stale. Nothing in either file says so — that is the point of generating the list.
+**A NEIGHBOUR is a dependency too**, which is why each of those two names the other: they share a directory, so each is part of the other's program and a change to one really does make the other's build stale. Nothing in either file says so — that is the point of generating the list.
 
-**`check` and `tokens` also take `--as=<path>`** — check this text as though it were that
-file. An editor checking UNSAVED text has to write it somewhere, and a program's neighbours, its
-namespaces and its `books/` folder are found from the directory the file is IN — so a scratch copy
-elsewhere is a different program. The text comes from the file given; `--as` only says where it
-belongs and what to name the report after.
+**`check` and `tokens` also take `--as=<path>`** — check this text as though it were that file. An editor checking UNSAVED text has to write it somewhere, and a program's neighbours, its namespaces and its `books/` folder are found from the directory the file is IN — so a scratch copy elsewhere is a different program. The text comes from the file given; `--as` only says where it belongs and what to name the report after.
 
-It reports what the **loader resolved**, not a re-reading of your source, so it cannot disagree
-with what a build actually loads. Bundled books never appear — `math` and `the c-language` are
-spliced in without being paths, and a build `need` has to be something that can be hashed. It is
-**transitive**, because a file pulled by a file you pull is equally a reason to rebuild.
+It reports what the **loader resolved**, not a re-reading of your source, so it cannot disagree with what a build actually loads. Bundled books never appear — `math` and `the c-language` are spliced in without being paths, and a build `need` has to be something that can be hashed. It is **transitive**, because a file pulled by a file you pull is equally a reason to rebuild.
 
-A file that does not type-check still reports its pulls. `pulls` is a question about loading, and
-a build whose source is momentarily broken must still know what to watch.
+A file that does not type-check still reports its pulls. `pulls` is a question about loading, and a build whose source is momentarily broken must still know what to watch.
 
-**`build` is overloaded by arity.** With a file it compiles that one file; with nothing it reads
-`blueprint.cufe` and does what the build description says — see [BOOKS.md](BOOKS.md#blueprints-blueprints).
-`cufet build blueprint.cufe` is refused by name, because under the overload it would quietly
-compile the build description itself into a binary.
+**`build` is overloaded by arity.** With a file it compiles that one file; with nothing it reads `blueprint.cufe` and does what the build description says — see [BOOKS.md](BOOKS.md#blueprints-blueprints). `cufet build blueprint.cufe` is refused by name, because under the overload it would quietly compile the build description itself into a binary.
 
-**`install` reads the PINS in that same blueprint** — each one a book, a git source and an exact
-commit — clones each source once into `books/.cufet-cache/`, and writes the pinned file to `books/`,
-where a pull already looks. Books that a fetched book pins are fetched too, so a project pins what
-it uses and not what its books use. Full detail, including the `pin` shape, is in
-[BOOKS.md](BOOKS.md#pinned-books-cufet-install).
+**`install` reads the PINS in that same blueprint** — each one a book, a git source and an exact commit — clones each source once into `books/.cufet-cache/`, and writes the pinned file to `books/`, where a pull already looks. Books that a fetched book pins are fetched too, so a project pins what it uses and not what its books use. Full detail, including the `pin` shape, is in [BOOKS.md](BOOKS.md#pinned-books-cufet-install).
 
-⚠ **Reading a fetched book's pins RUNS its blueprint**, so installing a book runs code from its
-repository. That is the npm/pip postinstall hazard, taken deliberately so a blueprint may compute
-its pins; `install` names each blueprint before it runs one. `install` requires **`git` on your
-`PATH`**, and nothing else — there is no registry, and publishing a book is `git push`.
+⚠ **Reading a fetched book's pins RUNS its blueprint**, so installing a book runs code from its repository. That is the npm/pip postinstall hazard, taken deliberately so a blueprint may compute its pins; `install` names each blueprint before it runs one. `install` requires **`git` on your `PATH`**, and nothing else — there is no registry, and publishing a book is `git push`.
 
-`build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is
-self-contained, with no external libraries and no flags beyond `-O2`, `-pthread`
-and `-lm`.
+`build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is self-contained, with no external libraries and no flags beyond `-O2`, `-pthread` and `-lm`.
 
-**A file with nothing to run is refused, by both verbs.** Cufet has no `main` — the top-level
-statements are the program — so a file whose top level is only declarations would start and finish
-having done nothing:
+**A file with nothing to run is refused, by both verbs.** Cufet has no `main` — the top-level statements are the program — so a file whose top level is only declarations would start and finish having done nothing:
 
 ```
 $ cufet build terminals.cufe
@@ -5261,83 +4245,46 @@ build: 'terminals.cufe' declares things but never does anything — there is not
   building, and build that.                                              ← exit 2
 ```
 
-`check` still accepts such a file, and that is deliberate: checking a library is exactly what a
-library author wants, and a book is compiled as part of whatever pulls it. The mistake is in asking
-that file to BE a program, never in the file.
+`check` still accepts such a file, and that is deliberate: checking a library is exactly what a library author wants, and a book is compiled as part of whatever pulls it. The mistake is in asking that file to BE a program, never in the file.
 
-**Builds are always optimized.** There is no debug build and no `--release`: a
-compiled Cufet program is the fast one, every time. If you need an unoptimized
-build — stepping through the generated C in a debugger, say — use `emit-c` and
-compile it yourself with whatever flags you want.
-`emit-c` is the escape hatch for cross-toolchain builds and for reading what was
-generated.
+**Builds are always optimized.** There is no debug build and no `--release`: a compiled Cufet program is the fast one, every time. If you need an unoptimized build — stepping through the generated C in a debugger, say — use `emit-c` and compile it yourself with whatever flags you want. `emit-c` is the escape hatch for cross-toolchain builds and for reading what was generated.
 
-**The runtime is a separate translation unit.** `emit-c program.cufe out.c` writes
-three files — `out.c` (your program), plus `cufet-runtime.c` and `cufet-runtime.h`
-beside it. Compile them together anywhere:
+**The runtime is a separate translation unit.** `emit-c program.cufe out.c` writes three files — `out.c` (your program), plus `cufet-runtime.c` and `cufet-runtime.h` beside it. Compile them together anywhere:
 
 ```
 gcc out.c cufet-runtime.c -o program -pthread -lm
 ```
 
-Keeping the runtime out of `out.c` is what makes that file readable. `build` compiles the runtime
-once and caches the object under your user cache directory (`%LOCALAPPDATA%\cufet` on
-Windows, `$XDG_CACHE_HOME/cufet` or `~/.cache/cufet` elsewhere; `CUFET_CACHE_DIR`
-overrides it), so later builds only compile your program. **The cache is never
-required** — if it cannot be written, the runtime is compiled alongside your program
-and the build succeeds anyway.
+Keeping the runtime out of `out.c` is what makes that file readable. `build` compiles the runtime once and caches the object under your user cache directory (`%LOCALAPPDATA%\cufet` on Windows, `$XDG_CACHE_HOME/cufet` or `~/.cache/cufet` elsewhere; `CUFET_CACHE_DIR` overrides it), so later builds only compile your program. **The cache is never required** — if it cannot be written, the runtime is compiled alongside your program and the build succeeds anyway.
 
-The lexer, parser, and type checker are shared, so a program that type-checks does so
-identically either way, and every error message you have seen in this document is the
-same in both.
+The lexer, parser, and type checker are shared, so a program that type-checks does so identically either way, and every error message you have seen in this document is the same in both.
 
-**Checking native compatibility ahead of time** — `cufet check --native` runs the code
-generator without invoking `gcc` and reports what it **refuses**, as warnings, since those
-programs still interpret:
+**Checking native compatibility ahead of time** — `cufet check --native` runs the code generator without invoking `gcc` and reports what it **refuses**, as warnings, since those programs still interpret:
 
 ```
 cufet check --native program.cufe
 ```
 
-> **A clean `--native` is not a promise the build will succeed.** It reports refusals,
-> and a refusal is the code generator saying so out loud. It cannot report a defect *in*
-> the generator — code that is emitted but does not compile — because from the generator's
-> side that looks like success. `cufet build` is the only thing that proves a program
-> builds, because only `gcc` reads the result.
->
-> If `build` fails on the generated C, that is a **bug in Cufet, not in your program** —
-> every line `gcc` saw was written by the compiler — and it says so, with `emit-c` to get
-> the generated source to report alongside it.
+> **A clean `--native` is not a promise the build will succeed.** It reports refusals, and a refusal is the code generator saying so out loud. It cannot report a defect *in* the generator — code that is emitted but does not compile — because from the generator's side that looks like success. `cufet build` is the only thing that proves a program builds, because only `gcc` reads the result.
+> If `build` fails on the generated C, that is a **bug in Cufet, not in your program** — every line `gcc` saw was written by the compiler — and it says so, with `emit-c` to get the generated source to report alongside it.
 
 #### What you get
 
-A compiled program is an ordinary native executable. Its sections are real: functions
-you `Bind` become machine symbols, a text value bound `permanently` sits in read-only
-data, and each thread's region stack is thread-local storage.
+A compiled program is an ordinary native executable. Its sections are real: functions you `Bind` become machine symbols, a text value bound `permanently` sits in read-only data, and each thread's region stack is thread-local storage.
 
-`number` compiles to an exact software decimal that is bit-for-bit identical to the
-interpreter's, so arithmetic does not quietly change meaning when you compile. Regions
-become real bump-allocated arenas. Tasks become real threads.
+`number` compiles to an exact software decimal that is bit-for-bit identical to the interpreter's, so arithmetic does not quietly change meaning when you compile. Regions become real bump-allocated arenas. Tasks become real threads.
 
 #### Where the two differ
 
-Compiled output is expected to equal interpreted output — that is enforced by the test
-suite, which compiles each program, runs the binary, and compares. Where they disagree,
-one of them is a bug rather than a documented difference.
+Compiled output is expected to equal interpreted output — that is enforced by the test suite, which compiles each program, runs the binary, and compares. Where they disagree, one of them is a bug rather than a documented difference.
 
 The exceptions are few and each is noted where it arises:
 
-- **Concurrency scheduling** — cooperative when interpreted, genuinely parallel when
-  compiled. No interleaving is specified.
-- **`power` with a fractional exponent** may differ in its last digit; the underlying
-  routine is the platform's own.
+- **Concurrency scheduling** — cooperative when interpreted, genuinely parallel when compiled. No interleaving is specified.
+- **`power` with a fractional exponent** may differ in its last digit; the underlying routine is the platform's own.
 - **Seeded randomness** is reproducible within a backend, not across them.
-- **Filesystem enumeration order** and **ASCII-versus-locale casing** are
-  platform-owned.
+- **Filesystem enumeration order** and **ASCII-versus-locale casing** are platform-owned.
 
 #### Platform notes
 
-Concurrency and subprocesses build and run on Windows with mingw as they do on Linux and
-macOS. Signal handling is the exception: mingw has no POSIX signals, so a program compiled
-there is always ended by Ctrl-C — `an interrupt is requested` never becomes true, and
-`Acknowledge the interrupt.` has nothing to clear.
+Concurrency and subprocesses build and run on Windows with mingw as they do on Linux and macOS. Signal handling is the exception: mingw has no POSIX signals, so a program compiled there is always ended by Ctrl-C — `an interrupt is requested` never becomes true, and `Acknowledge the interrupt.` has nothing to clear.
