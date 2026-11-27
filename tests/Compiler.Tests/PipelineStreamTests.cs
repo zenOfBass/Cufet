@@ -19,14 +19,19 @@ public class PipelineStreamTests : PipelineTestBase
         // read a line from a stream → voidable text; void at end-of-stream (a present empty line
         // is "", not void).
         AssertFileOracle("""
-            With the file "{PATH}" open for writing as out:
-                write "only-line" to out.
+            Try to:
+                With the file "{PATH}" open for writing as out:
+                    write "only-line" to out.
+                Done.
+                With the file "{PATH}" open for reading as inp:
+                    Define a1 as read a line from inp.
+                    Define a2 as read a line from inp.
+                    If a1 is void, state "1-void". Otherwise, state a1.
+                    If a2 is void, state "2-void". Otherwise, state a2.
+                Done.
             Done.
-            With the file "{PATH}" open for reading as inp:
-                Define a1 as read a line from inp.
-                Define a2 as read a line from inp.
-                If a1 is void, state "1-void". Otherwise, state a1.
-                If a2 is void, state "2-void". Otherwise, state a2.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
             Done.
             """);
     }
@@ -37,11 +42,19 @@ public class PipelineStreamTests : PipelineTestBase
         // The data-loss proof: a write inside a With block must be flushed+closed on EVERY exit —
         // normal end, return-out-of-block, propagated-failure, and Try-failure-goto. A skipped
         // fclose would lose the buffered write; reading the file back proves it landed.
+        // ⚠ Since 2026-11-27 a `With` has to sit inside a Try, and `or pass the failure off` is not
+        // written inside one, so the "propagated" exit is a failure caught in the function and handed
+        // on with `Return a failure.` — the block is still left by a failure partway through.
         AssertFileOracle("""
             Bind text to write-then-return, given (the text loc):
-                With the file loc open for writing as out:
-                    write "RETURN-DATA" to out.
-                    return "bailed".
+                Try to:
+                    With the file loc open for writing as out:
+                        write "RETURN-DATA" to out.
+                        return "bailed".
+                    Done.
+                Done.
+                In case of failure:
+                    Return "open failed".
                 Done.
                 return "normal".
             Done.
@@ -49,11 +62,16 @@ public class PipelineStreamTests : PipelineTestBase
             State (read all from the file "{PATH}" but on failure "LOST").
 
             Bind text or failure to write-then-propagate, given (the text loc):
-                With the file loc open for writing as out:
-                    write "PROPAGATE-DATA" to out.
-                    Define x as read all from the file "no-such-qq.txt" or pass the failure off.
-                    write " unreached" to out.
-                    return "ok".
+                Try to:
+                    With the file loc open for writing as out:
+                        write "PROPAGATE-DATA" to out.
+                        Define x as read all from the file "no-such-qq.txt".
+                        write " unreached" to out.
+                        return "ok".
+                    Done.
+                Done.
+                In case of failure:
+                    Return a failure.
                 Done.
                 return "normal".
             Done.
@@ -86,13 +104,18 @@ public class PipelineStreamTests : PipelineTestBase
         // unreached, so the outer file holds only what was written before the inner block.
         AssertFileOracle("""
             Bind text to nested, given (the text locone, the text loctwo):
-                With the file locone open for writing as outA:
-                    write "AAA" to outA.
-                    With the file loctwo open for writing as outB:
-                        write "BBB" to outB.
-                        return "inner".
+                Try to:
+                    With the file locone open for writing as outA:
+                        write "AAA" to outA.
+                        With the file loctwo open for writing as outB:
+                            write "BBB" to outB.
+                            return "inner".
+                        Done.
+                        write " unreachedA" to outA.
                     Done.
-                    write " unreachedA" to outA.
+                Done.
+                In case of failure:
+                    Return "open failed".
                 Done.
                 return "normal".
             Done.

@@ -398,8 +398,13 @@ public class PipelineTextFailureTests : PipelineTestBase
     public void CurrentDirectory_Change_AffectsRelativePaths_MatchesInterpreter()
     {
         AssertCwdOracle("""
-            The current directory becomes "{DIR}".
-            Write "landed here" to the file "probe.txt".
+            Try to:
+                The current directory becomes "{DIR}".
+                Write "landed here" to the file "probe.txt".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             Try to:
                 Define c as read all from the file "probe.txt".
                 State c.
@@ -431,7 +436,12 @@ public class PipelineTextFailureTests : PipelineTestBase
         // distinguish this from not-found by exception type, and Windows chdir reports ENOENT
         // rather than ENOTDIR. Getting "not-a-directory" from both is the whole point.
         AssertCwdOracle("""
-            Write "x" to the file "{DIR}/afile.txt".
+            Try to:
+                Write "x" to the file "{DIR}/afile.txt".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             Try to:
                 The current directory becomes "{DIR}/afile.txt".
             Done.
@@ -679,7 +689,12 @@ public class PipelineTextFailureTests : PipelineTestBase
         var ex = Assert.Throws<CompilerException>(() => Compile("""
             Pull a rabbit.
                 Have rabbit start a task as worker:
-                    The current directory becomes "/tmp".
+                    Try to:
+                        The current directory becomes "/tmp".
+                    Done.
+                    In case of failure:
+                        Return 0.
+                    Done.
                     return 1.
                 Done.
                 Define r as the awaited result of worker.
@@ -694,7 +709,12 @@ public class PipelineTextFailureTests : PipelineTestBase
     public void File_WriteReadRoundtrip_MatchesInterpreter()
     {
         AssertFileOracle("""
-            Write "hello world" to the file "{PATH}".
+            Try to:
+                Write "hello world" to the file "{PATH}".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             Try to:
                 Define c as read all from the file "{PATH}".
                 State c.
@@ -711,8 +731,13 @@ public class PipelineTextFailureTests : PipelineTestBase
     {
         // ReadAllLines semantics: 3 lines, no trailing empty (append adds two more lines).
         AssertFileOracle("""
-            Write "first" to the file "{PATH}".
-            Append "\nsecond\nthird" to the file "{PATH}".
+            Try to:
+                Write "first" to the file "{PATH}".
+                Append "\nsecond\nthird" to the file "{PATH}".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             Try to:
                 Define lines as read all lines from the file "{PATH}".
                 State the number of lines.
@@ -730,7 +755,12 @@ public class PipelineTextFailureTests : PipelineTestBase
     public void File_PathChecks_MatchesInterpreter()
     {
         AssertFileOracle("""
-            Write "x" to the file "{PATH}".
+            Try to:
+                Write "x" to the file "{PATH}".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             If the path "{PATH}" exists, state "exists". Otherwise, state "gone".
             If the path "{PATH}" is a file, state "is-file". Otherwise, state "not-file".
             If the path "{PATH}" is a directory, state "is-dir". Otherwise, state "not-dir".
@@ -763,24 +793,29 @@ public class PipelineTextFailureTests : PipelineTestBase
     public void With_ReadWriteStreams_MatchesInterpreter()
     {
         AssertFileOracle("""
-            With the file "{PATH}" open for writing as out:
-                write "alpha\n" to out.
-                write "beta\n" to out.
-                write "gamma" to out.
-            Done.
-            With the file "{PATH}" open for reading as inp:
-                Define first as read a line from inp.
-                State first but void is "?".
-                Define second as read a line from inp.
-                State second but void is "?".
-                State read all from inp.
-            Done.
-            With the file "{PATH}" open for reading as inp2:
-                Define lines as read all lines from inp2.
-                State the number of lines.
-                For each ln in lines, repeat:
-                    State "L: " joined to ln.
+            Try to:
+                With the file "{PATH}" open for writing as out:
+                    write "alpha\n" to out.
+                    write "beta\n" to out.
+                    write "gamma" to out.
                 Done.
+                With the file "{PATH}" open for reading as inp:
+                    Define first as read a line from inp.
+                    State first but void is "?".
+                    Define second as read a line from inp.
+                    State second but void is "?".
+                    State read all from inp.
+                Done.
+                With the file "{PATH}" open for reading as inp2:
+                    Define lines as read all lines from inp2.
+                    State the number of lines.
+                    For each ln in lines, repeat:
+                        State "L: " joined to ln.
+                    Done.
+                Done.
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
             Done.
             """);
     }

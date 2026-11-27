@@ -1004,11 +1004,11 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "Modulo by zero on line 2."),
         ("State \"before\".\nState 0b1 shifted left by 70.",
          "does not fit in 64 bits"),
-        // A set changed while looped over; a file that cannot be opened, with no Try to catch it.
+        // A set changed while looped over. (A file that cannot be opened, with no Try to catch it, sat
+        // here too until 2026-11-27: a file statement outside a Try is refused when checked now, so
+        // that failure can no longer reach the run.)
         ("Pull a book on collections.\n    Define seen as a set of text with (\"a\", \"b\").\n    For each s in seen, repeat:\n        State s.\n        Insert s joined to \"!\" into seen.\n    Done.\nDone.",
          "was modified during a for-each loop"),
-        ("State \"before\".\nWith the file \"no-such-file.txt\" open for reading as src:\n    State read all from src.\nDone.\nState \"never\".",
-         "the file 'no-such-file.txt' was not found"),
         // A task that faults with nobody awaiting it: its rabbit raises it at its Done.
         ("State \"before\".\nPull a rabbit.\n    Define zero as 0.\n    Have rabbit start a task:\n        State 10 / zero.\n    Done.\nDone.\nState \"never\".",
          "Division by zero on line 5."),

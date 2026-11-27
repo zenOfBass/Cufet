@@ -576,17 +576,27 @@ public class PipelineLanguageTests : PipelineTestBase
         // (and mutating THAT is caught, since it truncates the file being read). Cosmetic, but
         // catchable, so it is caught rather than left as an unexplained survivor.
         const string writing = """
-            With the file "cf-stream-probe.txt" open for writing as out:
-                Write "hi" to out.
-                State out.
+            Try to:
+                With the file "cf-stream-probe.txt" open for writing as out:
+                    Write "hi" to out.
+                    State out.
+                Done.
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
             Done.
             """;
         var wEx = Assert.Throws<CompilerException>(() => GenerateC(writing));
         Assert.Contains("writable stream of text", wEx.Message);
 
         const string reading = """
-            With the file "cf-stream-probe.txt" open for reading as inp:
-                State inp.
+            Try to:
+                With the file "cf-stream-probe.txt" open for reading as inp:
+                    State inp.
+                Done.
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
             Done.
             """;
         var rEx = Assert.Throws<CompilerException>(() => GenerateC(reading));

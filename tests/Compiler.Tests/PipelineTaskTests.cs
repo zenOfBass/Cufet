@@ -335,6 +335,9 @@ public class PipelineTaskTests : PipelineTestBase
                         write "never written" to out.
                     Done.
                 Done.
+                In case of failure:
+                    State "could not open it".
+                Done.
                 In case of exception (the exception):
                     State "caught: " joined to the message of the exception.
                     Suppress the exception.

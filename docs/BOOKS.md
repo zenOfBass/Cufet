@@ -41,7 +41,7 @@ Capability that most programs do not need lives in a **book** — a module that 
 
 The `book on <name>` spelling is **required** for a book, because the bundled names read badly without the noun — "Pull a math." A book is still a module, and `Pull` asks it the same question; only the spelling differs.
 
-Books are resolved at compile time. There is no dynamic loading, and no external loader yet. The bundled books are `math`, `collections`, `chance` and `blueprints`, plus the **language books** `the c-language`, `cufet` and `regex` — pulled for what they let you *write* rather than for anything you call on them, which is why they offer no members.
+Books are resolved when the program is checked; there is no dynamic loading. The bundled books are `math`, `collections`, `chance` and `blueprints`, plus the **language books** `the c-language`, `cufet` and `regex` — pulled for what they let you *write* rather than for anything you call on them, which is why they offer no members.
 
 **Several at once** — `Pull books on …` (plural) takes a comma-separated list, with an optional `and` before the last. One `Done.` closes the block for all of them:
 
@@ -98,7 +98,7 @@ Done.
 (5, 3, 9)
 ```
 
-`collections` provides `minimum`, `maximum`, `average`, and `unique` (first occurrence wins, order preserved). Each yields void for an empty series. `average` is exact — it does not go through floating point. The `matrix`, `set` and `chase` types also live in this book; see below.
+`collections` provides `minimum`, `maximum`, `average`, and `unique` (first occurrence wins, order preserved). `minimum`, `maximum` and `average` yield void for an empty series; `unique` gives back an empty one. `average` is exact — it does not go through floating point. The `matrix`, `set` and `chase` types also live in this book; see below.
 
 `chance` provides random numbers, random selection, and shuffling, plus `Seed the chance with <n>.` Seeding makes a run reproducible **within one backend**; the interpreter and a compiled binary use different generators, so a seeded program is not expected to produce the same sequence in both.
 
@@ -244,10 +244,11 @@ Done.
 
 **A set is a map with the value removed**, and it is stored as exactly that: the element keyed to itself. So what may be an element, how elements compare, and the iteration order are the map's answers already — see [Maps in REFERENCE.md](REFERENCE.md#maps) for which types may be a key.
 
-Three refusals, each naming the word it wants rather than the type it got:
+Four refusals, each naming the word it wants rather than the type it got:
 
 - `the size of <set>` → *write `the number of`*. A set reads as a collection of things, so it takes the series spelling.
 - `<map> has X` → *write `has a key for`*. A set holds things; a map holds keys.
+- `<set> has a key for X` → *write `has X`*, the other way round.
 - `Insert X after the first item of <set>` → a set has no positions.
 
 **There is no removal.** Nothing has needed to take something back out yet, and a spelling invented without a caller is one that has to be lived with.
@@ -570,7 +571,7 @@ Done.
 
 **There is one kind of address.** A `char*` and a `FILE*` are the same type here — what differs is not the value but what you do with it. There is **no address-of operator**: an address only ever comes *from* C and goes *back* to C, so Cufet never makes one, and there is no layout question to answer because a struct is C's idea and struct work happens in C.
 
-**An address may only be held inside a rabbit, and cannot outlive one.** That block already means region-scoped memory work, so it is also where a pointer's lifetime is answered for — the rabbit that knows when the region dies is what knows when the pointer dies. Holding one outside a rabbit is a static error, and so is putting one somewhere that outlasts the block: an address obeys the same escape rule as a series or a map, so inserting one into a series declared outside the rabbit is refused with "this value lives in a shorter-lived rabbit region than its destination".
+**An address may only be held inside a rabbit, and cannot outlive one.** That block already means region-scoped memory work, so it is also where a pointer's lifetime is answered for — the rabbit that knows when the region dies is what knows when the pointer dies. Holding one outside a rabbit is a static error, and so is putting one somewhere that outlasts the block: an address obeys the same escape rule as a series or a map, so inserting one into a series declared outside the rabbit is refused with "this value lives in a shorter-lived region than its destination".
 
 **NULL is void**, as everywhere else on this boundary, which is why the result is a `voidable address` — `fopen`, `malloc`, `getenv` and `opendir` all report failure that way.
 
@@ -850,7 +851,7 @@ A block that holds a **function** may only be cited where functions belong: at t
 
 Where a cited declaration lands is not a rule of its own. A type declaration belongs to the program wherever it is written, so a cited object is usable after the function that cited it — exactly as one written there by hand would be.
 
-**A block's `given` names holes, and `Cite <name> on (…)` fills them**, placing a copy as if written out there. A hole takes a name the block makes (`the term level`, filled with a name in quotes), a function or method it calls (`the number function next unto reader`, filled with the bare name), or a literal. Everything in a block is checked, so a mistake in one is reported at its own line, and a fill that does not fit at the `Cite`. *Rules — holes in cufet source*, below, has them exactly.
+**A block's `given` names holes, and `Cite <name> on (…)` fills them**, placing a copy as if written out there. A hole takes a name the block makes (`the term level`, filled with a name in quotes), a function or method it calls (`the number function next unto reader`, filled with the bare name), or a literal. A block is checked where it is cited, so a mistake in one is reported at the block's own line, and a fill that does not fit at the `Cite`. A block that is never cited is not checked. *Rules — holes in cufet source*, below, has them exactly.
 
 One name holds one block; a second under the same name is refused. `and free it with` is refused, and it is the one thing the two tags differ on: a release clause hands memory back to the language that allocated it, and nothing was allocated across a boundary here. A message from inside a block reports the line it occupies in the file that holds it, not the line it would have on its own.
 
@@ -1096,7 +1097,7 @@ false
 
 A line break is one `\n` here whatever a file is stored as — a CRLF source does not put a `\r` into a literal, and reading a file's lines strips it — so `(?m)` needs no second answer for Windows.
 
-**Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed into a pattern is that character — a pattern may run across lines the same way a `<<...>>` literal does. `\t` and `\n` are refused for the reason every unknown escape is: `\d` will mean digits one day, and quietly meaning `d` until then is a change nobody sees. Nothing is missing here but a spelling, and the refusal says which character to type instead.
+**Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed into a pattern is that character — a pattern may run across lines the same way a `<<...>>` literal does. `\t` and `\n` are refused for the reason every unknown escape is: an escape that meant its plain letter today could not mean anything else later without changing working patterns. Nothing is missing here but a spelling, and the refusal says which character to type instead.
 
 **What is refused, and refused by name:**
 
@@ -1131,7 +1132,7 @@ true
 true
 ```
 
-An unknown escape is refused for the same reason a metacharacter is: `\d` will mean digits one day, and quietly meaning `d` until then is a change nobody would see. An **empty** pattern is refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty subject.
+An unknown escape is refused for the same reason: one read as its plain letter today could never be given a meaning later without silently changing patterns that use it. An **empty** pattern is refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty subject.
 
 See [`examples/parsing/semver.cufe`](../examples/parsing/semver.cufe) for the pattern surface under real load — it validates semantic versions, and every case it checks carries **the answer the spec gives**, not one this project chose. Two backends agreeing proves only that they agree; an answer key written by somebody else is what makes agreement mean correct. The awkward rule is the one a hand-written check always gets wrong — `01.1.1` is not a version, because a numeric identifier may not be padded — and as a pattern that is just `0|[1-9]\d*`.
 
@@ -1290,7 +1291,7 @@ A pin is three things:
 
 **A pin names a COMMIT, and the transport is why.** A version string would be a second name for the same thing, and the two can disagree. A content checksum is the obvious alternative and it cannot survive the journey: `git` rewrites line endings on checkout where `core.autocrlf` is set, so the bytes that arrive are not always the bytes that were published. A commit sha is the one identifier `git` itself guarantees. The installer clones with `--no-checkout` and reads the file with `git show <commit>:<file>`, straight out of the object store, so there is no working tree for any setting to rewrite.
 
-**The clone is kept, as a cache**, at `books/.cufet-cache/<name>`; a second install re-reads it instead of fetching again. That location is measured rather than tidy: `Write` does not create parent directories and Cufet cannot make one, so `books/` has to be brought into being by something — and `git clone` creates its target including parents. Deleting `books/` therefore removes everything the installer made, which is the same escape hatch deleting `.cufet-build` offers the build.
+**The clone is kept, as a cache**, at `books/.cufet-cache/<name>`; a second install re-reads it instead of fetching again. That location is measured rather than tidy: `Write` does not create parent directories, and `git clone` creates its target including parents, so cloning there is what brings `books/` into being. Deleting `books/` therefore removes everything the installer made, which is the same escape hatch deleting `.cufet-build` offers the build.
 
 **A book's own pins are followed.** If a fetched book carries a `blueprint.cufe`, the books IT pins are fetched too, and theirs after that. A project pins what it uses and nothing else; a library's dependencies stay the library's business.
 

@@ -12,7 +12,7 @@ Where Cufet is going.
 | **Why** the language is like this | [DESIGN.md](DESIGN.md) |
 | How to build, test and contribute | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 
-Cufet is pre-1.0 and may still change. Versioning is semantic: feature arcs bump the minor version, and 1.0.0 will mark the point at which the language is considered stable — a program that works on 1.0 keeps working on every 1.x (DESIGN, *What 1.0 promises*). What stands between: programs the interpreter runs and the compiler refuses — about fifteen "not yet supported by the compiler" paths, an open catalogue, a stash carried out of the rabbit that buried it, and a task reading a function value it captured — each passed by `check` and refused only by the compiler.
+Cufet is pre-1.0 and may still change. Versioning is semantic: feature arcs bump the minor version, and 1.0.0 will mark the point at which the language is considered stable — a program that works on 1.0 keeps working on every 1.x (DESIGN, *What 1.0 promises*). What stands between: programs the interpreter runs and the compiler refuses — about eighteen "not yet supported by the compiler" paths, and a task reading a function value it captured — each passed by `check` and refused only by the compiler.
 
 ## Cufet in Cufet
 
@@ -28,7 +28,7 @@ All need a design session before they can be ordered against anything. They are 
 
 1. **A REPL page.** `tools/repl.cufe` keeps state by REPLAY — it re-runs the accumulated lines and shows only what the new run added — and that gets SIMPLER in the browser: `Runtime.Run(source)` already takes a whole program and returns its output, statelessly. Replay repeats side effects, and a page invites longer sessions than a terminal; every line re-runs every earlier one. Accepted natively; write it down rather than rediscover it.
 
-2. **The project tree — the rest of it.** The blueprint's drawing of the tree is BUILT in the C# front end (why it is shaped this way: DESIGN.md, *The tree the blueprint draws*). Left: the editor's maintenance — rewrite an entry when a folder moves or is renamed, ask "own namespace, or part of its parent?" when one is created, offer the edit that fixes a reference broken by the choice, every write confirmed. Cross-folder TYPES stay a gap for folders that remain walls — `snake` cannot name a `terminals` type. The Cufet front end checks one file alone and loads no project, so it needs a reader of its own only once it does.
+2. **The project tree — the rest of it.** The blueprint's drawing of the tree is BUILT in the C# front end (why it is shaped this way: DESIGN.md, *The tree the blueprint draws*). Left: the editor's maintenance — rewrite an entry when a folder moves or is renamed, ask "own namespace, or part of its parent?" when one is created, offer the edit that fixes a reference broken by the choice, every write confirmed. Cross-folder TYPES stay a gap for folders that remain walls — `snake` cannot name a `terminals` type.
 
 ## Ongoing, no fixed slot
 

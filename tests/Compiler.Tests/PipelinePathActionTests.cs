@@ -81,7 +81,12 @@ public class PipelinePathActionTests : PipelineTestBase
     public void MakingOneThatIsAlreadyThere_IsRefused_MatchesInterpreter()
     {
         AssertCwdOracle("""
-            Make the directory "{DIR}/twice".
+            Try to:
+                Make the directory "{DIR}/twice".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             Try to:
                 Make the directory "{DIR}/twice".
                 State "unreachable".
@@ -90,7 +95,12 @@ public class PipelinePathActionTests : PipelineTestBase
                 Define why as the category of the failure but void is "none".
                 State "{why}: {the message of the failure}".
             Done.
-            Remove the directory "{DIR}/twice".
+            Try to:
+                Remove the directory "{DIR}/twice".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             """);
     }
 
@@ -102,8 +112,13 @@ public class PipelinePathActionTests : PipelineTestBase
     public void RemovingANonEmptyDirectory_IsRefused_MatchesInterpreter()
     {
         AssertCwdOracle("""
-            Make the directory "{DIR}/full".
-            Write "x" to the file "{DIR}/full/x.txt".
+            Try to:
+                Make the directory "{DIR}/full".
+                Write "x" to the file "{DIR}/full/x.txt".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             Try to:
                 Remove the directory "{DIR}/full".
                 State "unreachable".
@@ -113,8 +128,13 @@ public class PipelinePathActionTests : PipelineTestBase
                 State "{why}: {the message of the failure}".
             Done.
             If the path "{DIR}/full/x.txt" exists, state "the file survived".
-            Remove the file "{DIR}/full/x.txt".
-            Remove the directory "{DIR}/full".
+            Try to:
+                Remove the file "{DIR}/full/x.txt".
+                Remove the directory "{DIR}/full".
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
             """);
     }
 
