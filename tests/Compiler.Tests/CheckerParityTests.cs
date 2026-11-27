@@ -1009,6 +1009,8 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object vec2 with (the number x).\nBind overloading /, given (the lhs is a vec2, the rhs is a number):\n    If rhs is 0, return a failure \"zero\".\n    Return lhs's x / rhs.\nDone.\nDefine u as a new vec2 { the x 4 }.\nDefine half as (u / 2) but on failure 0.\nState half + 1.",
         // Tasks, channels and pipes of functions — sending, closing, delivering, awaiting, a task's captured writes and inferred result, and what flows between pipe stages.
         "Define n as 3.\nSend 1 through n.",
+        "Bind void to dbl:\n    For each n from the input:\n        State n.\n    Done.\nDone.\nrun \"ls\" | dbl.",
+        "Bind void to emit:\n    Output \"x\".\nDone.\nTry to:\n    emit | run \"wc\".\nDone.\nIn case of failure:\n    State \"f\".\nDone.",
         "Define c as a channel of number.\nSend \"a\" through c.",
         "Define c as a channel of number.\nSend 1 through c.\nDefine got as the delivery from c.\nState got + 1.",
         "Define c as a channel of number.\nSend 1 through c.\nDefine got as the delivery from c.\nIf got is not void, state got + 1.",

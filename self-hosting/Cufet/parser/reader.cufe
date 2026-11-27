@@ -212,6 +212,19 @@ Pull a book on collections.
 
     /// ReservedWordAsName.
     Bind text to reserved-as-name unto parser, given (the token word):
+        // The word found may be what comes AFTER a name, with the name missing.
+        Define follows-a-name as word's kind is "As" or word's kind is "Becomes" or word's kind is "Given" or word's kind is "In" or word's kind is "From" or word's kind is "With" or word's kind is "Unto".
+        If one's at is greater than 1 and follows-a-name:
+            Define before as cast one's token-at on (one's at - 1).
+            If before's kind is "Article":
+                Return cast one's refused on (before, "'{before's lexeme}' is an article, which Cufet reads past, so there is no name before "
+                    joined to "'{word's lexeme}'. 'a', 'an' and 'the' can never be names. Choose another name.").
+            Done.
+            If before's kind is "FunctionKw" and word's kind is "Given":
+                Return cast one's refused on (word, "a name is missing before 'given'. A parameter that takes a function is named "
+                    joined to "between 'function' and 'given', as in 'the number function step given (the number)'.").
+            Done.
+        Done.
         Return cast one's refused on (word, "'{word's lexeme}' is a word Cufet has taken, so it cannot be a name here. "
             joined to "A reserved word can be neither a variable nor a field, anywhere in any "
             joined to "program. Choose another name — see the reserved list in GRAMMAR.").

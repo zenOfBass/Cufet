@@ -51,6 +51,16 @@ public sealed partial class TypeChecker
             return;
         }
 
+        // A `run` stage among function stages: say so, rather than call its result record "not a
+        // function", and before inferring it, which would ask for its launch failure to be handled.
+        if (stages.Find(s => s is RunExpression) is { } run)
+            throw TypeError(
+                "a pipe is all function stages or all 'run' stages",
+                null,
+                GetExprLine(run), GetExprColumn(run),
+                "mix a 'run' stage with function stages",
+                "Make every stage a function, or every stage a 'run'.");
+
         // Task branch: all stages must be functions.
         foreach (var stage in stages)
         {

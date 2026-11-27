@@ -2516,7 +2516,10 @@ public sealed partial class TypeChecker
                     $"'{od.Name}' comes with the language, so its name can't be used for a new object",
                     null, od.Line, od.Column,
                     $"define an object named '{od.Name}'",
-                    $"Pick another name — 'Pull {od.Name}.' always finds the one the language ships.");
+                    // A book is pulled as one, so 'Pull math.' is itself refused; only the rabbit is pulled by its name.
+                    od.Name.Equals(RabbitModuleName, StringComparison.OrdinalIgnoreCase)
+                        ? $"Pick another name — 'Pull a {od.Name}.' always finds the one the language ships."
+                        : $"Pick another name — 'Pull a book on {od.Name}.' always finds the one the language ships.");
 
             // ★ Two methods of one name written in the body are refused as an `unto` one is. Until
             // 2026-11-25 only the `unto` pair was compared, and two nested ones were accepted with

@@ -623,6 +623,12 @@ public sealed class Parser
                     carried.Add(ParseCarriedObjectDefinition());
                     _inObjectDef = wasInObject;
                 }
+                // Only `Define object …` declares a type here. A `Define y as 2.` is a value, and
+                // being told about types and modules sent the reader the wrong way.
+                else if (Peek().Type == TokenType.Define && PeekAfterCurrent() != TokenType.Object)
+                    throw new ParseException(Peek().Line, Peek().Column,
+                        "an object's body holds only 'Bind …', 'Get …' and 'Set …' definitions, so a value "
+                      + "cannot be defined here. A value the object keeps is a field, declared in its 'with (…)'.");
                 else if (Peek().Type == TokenType.Define)
                     throw new ParseException(Peek().Line, Peek().Column,
                         $"only a module may declare a type inside its body, and " +
@@ -1689,6 +1695,13 @@ public sealed class Parser
                 throw new ParseException(armTok.Line, armTok.Column,
                     "a value arm is the value alone, because the header already says 'where it is' — "
                     + "write '\"cd\", …', not 'It is \"cd\", …'.");
+
+            // A text with a `{…}` hole is worked out when the program runs, so it is not a value
+            // an arm can name; without this it fell through to the type parse, "expected a type".
+            if (Peek().Type == TokenType.InterpolOpen)
+                throw new ParseException(armTok.Line, armTok.Column,
+                    "a value arm names a text written out in full, so it cannot have a '{…}' hole. "
+                    + "To compare with a text made when the program runs, use 'If'.");
 
             var cases  = new List<CufetType>();
             SkipNoise();
@@ -6266,11 +6279,30 @@ public sealed class Parser
     /// `expected In, got Entry "entry"`. Two copies of this sentence would be two answers to one
     /// question.
     /// </remarks>
-    private static ParseException ReservedWordAsName(Token tok) =>
-        new(tok.Line, tok.Column,
+    private ParseException ReservedWordAsName(Token tok)
+    {
+        // The word found may not be the name at all, but what comes AFTER one, with the name
+        // missing: `Define a as 1.` read `a` as an article and found `as`, and a parameter typed
+        // `the number function given (…)` has no name before `given`. Blaming `as` or `given`
+        // sent the reader to the one word that was right.
+        if (_pos > 0 && tok.Type is TokenType.As or TokenType.Becomes or TokenType.Given or TokenType.In
+                                 or TokenType.From or TokenType.With or TokenType.Unto)
+        {
+            var before = _tokens[_pos - 1];
+            if (before.Type == TokenType.Article)
+                return new(before.Line, before.Column,
+                    $"'{before.Lexeme}' is an article, which Cufet reads past, so there is no name before "
+                  + $"'{tok.Lexeme}'. 'a', 'an' and 'the' can never be names. Choose another name.");
+            if (before.Type == TokenType.FunctionKw && tok.Type == TokenType.Given)
+                return new(tok.Line, tok.Column,
+                    "a name is missing before 'given'. A parameter that takes a function is named "
+                  + "between 'function' and 'given', as in 'the number function step given (the number)'.");
+        }
+        return new(tok.Line, tok.Column,
             $"'{tok.Lexeme}' is a word Cufet has taken, so it cannot be a name here. "
           + "A reserved word can be neither a variable nor a field, anywhere in any "
           + "program. Choose another name — see the reserved list in GRAMMAR.");
+    }
 
     /// <summary>Is this token a WORD the lexer refused to treat as a name?</summary>
     /// <remarks>

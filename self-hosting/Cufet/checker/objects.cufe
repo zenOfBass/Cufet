@@ -286,9 +286,12 @@ Pull a book on collections.
             If statement's kind is "ObjectDefinition":
                 Define name as cast def-name on (statement).
                 If cast is-bundled-module on (name) or (name in lowercase) is "rabbit":
+                    // A book is pulled as one; only the rabbit is pulled by its name.
+                    Define how as "Pull a book on {name}.".
+                    If (name in lowercase) is "rabbit", the how becomes "Pull a {name}.".
                     Return a failure (cast refusal-of on ("'{name}' comes with the language, so its name can't be used for a new object", "",
                         cast number-of on (cast field-of on (statement, 9)), "define an object named '{name}'",
-                        "Pick another name — 'Pull {name}.' always finds the one the language ships.")).
+                        "Pick another name — '{how}' always finds the one the language ships.")).
                 Done.
                 Define nested-seen as a map from text to fact.
                 For each method in (cast field-of on (statement, 4))'s children, repeat:

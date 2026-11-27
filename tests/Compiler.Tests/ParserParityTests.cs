@@ -322,6 +322,12 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         "Try to\n    State \"hi\".\nDone.",
         "Define xs as a series of number with (1).\nFor each n in xs, repeat\n    State n.\nDone.",
         "Define hops as 0.\nWhile hops is less than 3 repeat:\n    The hops becomes hops + 1.\nDone.",
+        // A missing name, not a taken one; and a Judge arm with a hole; and a value in an object body (2026-11-27).
+        "Define a as 1.",
+        "Define the range as 1.",
+        "Bind number to hof, given (the number function given (the number)):\n    Return 1.\nDone.",
+        "Define x as \"hi\".\nJudge x, where it is:\n    \"{x}\", state 1.\n    Otherwise, state 2.\nDone.",
+        "Define object box with (the number size):\n    Define y as 2.\nDone.",
     ];
 
     [Fact]

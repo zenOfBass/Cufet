@@ -100,6 +100,12 @@ Pull a book on collections.
                 Return a failure (cast one's refused on (arm-tok,
                     "a value arm is the value alone, because the header already says 'where it is' — write '\"cd\", …', not 'It is \"cd\", …'.")).
             Done.
+            // A text with a hole is worked out when the program runs, so no arm can name it.
+            If kind is "InterpolOpen":
+                Return a failure (cast one's refused on (arm-tok,
+                    "a value arm names a text written out in full, so it cannot have a '\{…}' hole. "
+                    joined to "To compare with a text made when the program runs, use 'If'.")).
+            Done.
             Define cases as cast listed.
             Cast one's skip-noise.
             Define first-case as cast one's type-annotation or pass the failure off.

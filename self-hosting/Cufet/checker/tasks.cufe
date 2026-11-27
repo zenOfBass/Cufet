@@ -512,6 +512,14 @@ Pull a book on collections.
     /// what the next one's `for each … from the input` reads — so a named stage's body is checked
     /// again with that bound.
     Bind void or failure to check-task-pipe unto checker, given (the series of node stages):
+        // A `run` stage among function stages: said before it is inferred.
+        For each stage in stages, repeat:
+            If stage's kind is "RunExpression":
+                Return a failure (cast refusal-of on ("a pipe is all function stages or all 'run' stages", "",
+                    cast stage-row on (stage), "mix a 'run' stage with function stages",
+                    "Make every stage a function, or every stage a 'run'.")).
+            Done.
+        Done.
         For each stage in stages, repeat:
             Define staged as cast one's infer on (stage) or pass the failure off.
             If cast is-none on (staged) is false and staged's kind is not "FunctionType":

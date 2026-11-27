@@ -453,6 +453,12 @@ Pull a book on collections.
                     Cast carried's add on (inner).
                     One's in-object-def becomes was-in-object.
                 Done.
+                // Only `Define object …` declares a type here; anything else is a value.
+                Otherwise if kind is "Define" and cast one's kind-after is not "Object":
+                    Return a failure (cast one's refused on (cast one's peek,
+                        "an object's body holds only 'Bind …', 'Get …' and 'Set …' definitions, so a value "
+                        joined to "cannot be defined here. A value the object keeps is a field, declared in its 'with (…)'.")).
+                Done.
                 Otherwise if kind is "Define":
                     Return a failure (cast one's refused on (cast one's peek,
                         "only a module may declare a type inside its body, and "
