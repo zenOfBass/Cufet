@@ -443,7 +443,7 @@ Done.
 static int int_eq(int a, int b) { return a == b; }
 ```
 
-What a hole takes is decided by its parameter. `the c-language axiom test` takes complete C source: a filled axiom, or a bare `[…]`, which takes its language from the hole. `the term type-c` takes a text, refused unless it is a C name. A `text`, `number` or `fact` goes in as C's own literal, quoted and escaped, so a value never becomes code. GRAMMAR's *Source with holes* has the rules.
+What a hole takes is decided by its parameter. `the c-language axiom test` takes complete C source: a filled axiom, or a bare `[…]`, which takes its language from the hole. `the term type-c` takes a text, refused unless it is a C name. A `text`, `number` or `fact` goes in as C's own literal, quoted and escaped, so a value never becomes code. *Rules — source with holes*, below, has them exactly.
 
 #### An axiom is a value
 
@@ -674,6 +674,126 @@ Where there is no toolchain at all — the web playground runs the interpreter i
 
 ---
 
+#### Rules — an axiom in `[ ... ]`
+
+```cufet
+Pull a book on the c-language.
+    Define c-language number get-pid as [getpid()].
+    State cast get-pid.
+Done.
+```
+
+- Square brackets hold foreign source, and appear nowhere else.
+- Brackets nest; a bracket after a backslash does not count. Nothing is unescaped: the foreign side gets exactly the characters written. A lone `]` inside a foreign string ends the source early; write `\]`.
+- The tag says the language and cannot be dropped: `Define c-language x as [ … ].` (or `Define a c-language axiom x as [ … ].`). `Define x as [ … ].` is refused.
+- The language's book must be pulled: `Pull a book on the c-language.` It may be aliased (`as c`); the tag still names the language.
+- What an axiom gives back is declared where it is written: `Define c-language number add, …`.
+  - An axiom that names a result is run with `cast`, and the call works wherever any call does. As a statement, `Cast x on (…).` discards the result.
+  - An axiom that names no result and takes no parameters is a preamble: pasted once, above every other axiom, so its declarations are shared. It is never run.
+  - One that names no result and takes parameters is source with holes (below).
+- An axiom binding is permanent, so a function body may use it.
+
+#### Rules — an axiom's parameters
+
+```cufet-fragment
+Define c-language open-read-only, given (the text file-path), as [open(the file-path, O_RDONLY)].
+```
+
+- A parameter is reached in the source by its article: `the file-path`. That is substituted everywhere in the source, inside a foreign string too.
+- A parameter the source never uses is refused.
+- Values cross, never source text:
+
+| Cufet | reaches C as |
+| --- | --- |
+| `number` | `long long`; a fractional or out-of-range value raises an exception |
+| `text` | `const char*`, UTF-8, valid for the call |
+| `fact` | `int`, 1 or 0 |
+
+- What comes back:
+
+| Declared | C gives | |
+| --- | --- | --- |
+| `number` | any C whole number, signed or unsigned | exact; `size_t` arrives unsigned |
+| `fact` | anything with a truth value | 1 or 0 |
+| `voidable number` | `float`, `double`, `long double` | 17 significant digits; NaN, an infinity, or a magnitude no decimal holds is void |
+| `voidable address` | any pointer | held, never read through; NULL is void |
+| `voidable text` | `char*`, `const char*` | copied; NULL is void |
+
+- A text result must be `voidable text`; plain `text` is refused. A floating result must be `voidable number` and a whole one `number`; the wrong one is refused by the C compiler.
+
+| Written | Means |
+| --- | --- |
+| `Define c-language x as [ … ].` | declare an axiom |
+| `Cast x on (a, b).` | run it as a statement; the result is discarded |
+| `… as [ … ], and free it with <name>.` | the axiom that releases the address this one gives back |
+| `the c-language number axiom <name>` | an axiom as a type: a parameter, a field, an item |
+| `the c-language number axiom given (the text) <name>` | the same, saying what running it takes |
+| `Define c-language x, given (the term t, …), as [ … ].` | source with holes: filled, never run |
+| `x on (a, b)` | fill source and keep it, unrun |
+| `the c-language axiom <name>` | complete source as a value |
+| `<source> converted to text` | the source's text |
+| `the text at <address>` | read through an address: a copied `voidable text` |
+
+#### Rules — source with holes
+
+```cufet
+Pull a book on the c-language.
+    Define c-language eq-function, given (the term type-c, the term eq-name, the c-language axiom test),
+        as [static int the eq-name(the type-c a, the type-c b) { return the test; }].
+    Define c-language value-equal, given (the term eq-name), as [the eq-name(a.value, b.value)].
+
+    Define fragment as eq-function on ("int", "int_eq", value-equal on ("inner_eq")).
+    State fragment converted to text.
+Done.
+```
+```output
+static int int_eq(int a, int b) { return inner_eq(a.value, b.value); }
+```
+
+- `x on (…)` fills and keeps; `cast x on (…)` on source with holes is refused, and `x on (…)` on anything that is not source is refused. Holes are filled by position; a named argument is refused.
+
+| Declared | Takes | Goes in as |
+| --- | --- | --- |
+| `the c-language axiom test` | complete source of the same language | its text |
+| `the term type-c` | a text | itself; when filled it must be a C name (letters, digits, `_`, not starting with a digit), or an exception is raised |
+| `the text x`, `the number n`, `the fact f` | a value | a C literal: a quoted, escaped string; a number, bracketed when negative; 1 or 0 |
+
+- What fills a hole is not searched for holes.
+- A bare `[…]` may be an argument filling a code hole, or the `Return` of a function giving back `c-language axiom`; it takes its language from there. Anywhere else it is refused.
+- A hole counts only where no letter, digit, `_` or `-` follows it: `the type-c_eq` and `the held->len` fill nothing. Write `(the held)->len`, or pass the joined name as a term.
+- Filled source is never run, so it needs no C toolchain.
+- `on` fills only `c-language` source; `cufet` source is filled by `Cite`.
+
+#### Rules — an axiom as a value
+
+```cufet-fragment
+Bind number to measure, given (the c-language number axiom given (the text) job, the text what):
+    Return cast job on (what).
+Done.
+```
+
+- An axiom that names its result may be passed, stored and run. `given (…)` belongs only in that type spelling; a declaration lists its parameters after the name.
+- A `c-language axiom` type with no result is complete source. Source still taking parameters, written as a type, is refused.
+- An axiom and a function are different types; neither fills a parameter declared as the other.
+- `and free it with` runs once per call that acquires the address, however the axiom was reached.
+- An axiom prints as `<axiom>`. Source prints as its text.
+
+#### Rules — addresses
+
+- An `address` may be held only inside a rabbit's block. Holding one outside any rabbit is refused.
+- An address lives in the rabbit open where it was got, and may not be stored where it would outlive it: into a series, a map or a name made in an outer rabbit.
+- `the text at <address>` is the only read through one, and it copies into the rabbit's region. A void address reads as void. An address prints as `<address>`.
+- There is one address type and no address-of operator.
+- `and free it with <name>` names an axiom taking one `address`; it runs on every way out of the block, an exception included. A void result is not freed, and an axiom with no clause is never freed. Nothing checks that the named axiom is the right one.
+
+#### Rules — running an axiom
+
+- An axiom sees the C standard library, plus POSIX on Unix and Win32/winsock on Windows, and writes no `#include`. `<termios.h>`, `<poll.h>`, `<sys/socket.h>` and `<sys/wait.h>` are Unix-only; `<windows.h>` and `<winsock2.h>` are Windows-only.
+- A library of your own cannot be linked yet.
+- Running an axiom needs a C toolchain on both backends. Interpreted, each axiom is compiled once into a shared library, cached by its content. Where there is no toolchain (the playground) the program refuses to run.
+- Every axiom a program can run is built before it starts, so one that does not compile means no output at all, either way the program is run.
+- C's own global state belongs to one process: the interpreter's, or the compiled program's.
+
 ### Cufet source (`cufet`)
 
 **A `cufet` axiom is Cufet source held under a name.** The same surface as a foreign one, with a different mechanism behind it. `[ ... ]` still says *the text inside is not the program around it*, and that stays true here — the source is parsed, but nothing happens to it until you say so.
@@ -730,11 +850,99 @@ A block that holds a **function** may only be cited where functions belong: at t
 
 Where a cited declaration lands is not a rule of its own. A type declaration belongs to the program wherever it is written, so a cited object is usable after the function that cited it — exactly as one written there by hand would be.
 
-**A block's `given` names holes, and `Cite <name> on (…)` fills them**, placing a copy as if written out there. A hole takes a name the block makes (`the term level`, filled with a name in quotes), a function or method it calls (`the number function next unto reader`, filled with the bare name), or a literal. Everything in a block is checked, so a mistake in one is reported at its own line, and a fill that does not fit at the `Cite`. GRAMMAR, *Holes in cufet source*, has the rules.
+**A block's `given` names holes, and `Cite <name> on (…)` fills them**, placing a copy as if written out there. A hole takes a name the block makes (`the term level`, filled with a name in quotes), a function or method it calls (`the number function next unto reader`, filled with the bare name), or a literal. Everything in a block is checked, so a mistake in one is reported at its own line, and a fill that does not fit at the `Cite`. *Rules — holes in cufet source*, below, has them exactly.
 
 One name holds one block; a second under the same name is refused. `and free it with` is refused, and it is the one thing the two tags differ on: a release clause hands memory back to the language that allocated it, and nothing was allocated across a boundary here. A message from inside a block reports the line it occupies in the file that holds it, not the line it would have on its own.
 
 Nothing about this reaches a backend. The blocks are placed and then removed while the program is still being checked, so what runs — interpreted or compiled — is a program of ordinary declarations, and neither backend has a word to say about a cufet axiom.
+
+#### Rules — a `cufet` axiom, placed by `Cite`
+
+```cufet
+Pull a book on cufet.
+    Define cufet number sum-to, given (the number top), as [
+        Define the total as 0.
+        For each step in range 1 to the top, repeat:
+            The total becomes the total + step.
+        Done.
+        Return the total.
+    ].
+    State cast sum-to on (10).      ← 55
+Done.
+```
+
+- The book is pulled as `Pull a book on cufet.`
+- A `cufet` axiom that names its result is a function body: any Cufet type may come back, and it is a value like any function. One that names none is a block of declarations, placed by `Cite`.
+- A block holds objects, interfaces, `Define`s and `Bind`s. `Cite <name>.` places them where the `Cite` is: a type belongs to the program wherever that is, and a value is a local there, so one block cited twice makes two separate locals.
+
+```cufet
+Pull a book on cufet.
+    Define cufet vector-shape as [
+        Define object vec2 with (the number x, the number y):
+            Bind number to length-squared:
+                Return one's x * one's x + one's y * one's y.
+            Done.
+        Done.
+    ].
+
+    Cite vector-shape.
+
+    Define the arrow as a new vec2 { the x 3, the y 4 }.
+    State cast length-squared on (the arrow).       ← 25
+Done.
+```
+
+- A block may use only what belongs to the program (a function, a type, a `permanently` constant, a pulled book) and what it declares itself.
+- A block that holds a function may be cited only at the top level or directly inside a `Pull`.
+- A block may be cited before its declaration. A block never cited places nothing, and its name cannot be stated, passed or read.
+- One name holds one block; a second is refused.
+- A runnable `cufet` axiom cannot be cited. `and free it with` on a `cufet` axiom is refused.
+- A mistake inside a block is reported at the block's own line, once the block is cited.
+
+#### Rules — holes in cufet source
+
+```cufet
+Define object counter with (the number place):
+    Bind number to step:
+        One's place becomes one's place + 1.
+        Return one's place.
+    Done.
+Done.
+
+Pull a book on cufet.
+    Define cufet twice-over, given (the term made, the number function next unto counter, the number extra), as [
+        Bind number to made unto counter:
+            Cast one's next.
+            Return cast one's next + extra.
+        Done.
+    ].
+
+    Cite twice-over on ("two-steps", step, 0).
+    Cite twice-over on ("four-steps", two-steps, 100).
+Done.
+
+Define the tally as a new counter { the place 0 }.
+State cast tally's four-steps.
+State tally's place.
+```
+```output
+104
+4
+```
+
+| Declared | Means | Filled with |
+| --- | --- | --- |
+| `the term made` | a name the block makes | a name in quotes |
+| `the number function next`, `… unto counter` | a function, or a method of that object, the block calls | its name, bare |
+| `the text x`, `the number n`, `the fact f` | a value | a literal |
+
+- `Cite <name> on (…)` fills the holes and places a copy. `on` without `Cite` does not fill cufet source.
+- A function hole may say what it gives back as a `Bind` does, and what it takes after that: `the node or failure function next unto parser given (the node)`.
+- What fills a hole is written out at the `Cite`; a variable is refused where a literal goes.
+- There is no hole for code.
+- A term must be declared by the block, with a `Bind` or a `Define`. A hole nothing uses is refused. A value hole is refused if the block declares that name again.
+- A folder carries its blocks and `Cite`s: a file may cite a block from its own folder or a folder above. A neighbour's `Cite` places declarations only. A name a `Cite` makes is its folder's, reached from outside as `lib's stamped`. A pulled book carries neither.
+- An interface default written outside a block does not find a cited interface: `Bind <type> to <name> unto <cited-interface>` is not found. A conformer's own method works.
 
 ### Patterns (`regex`)
 
