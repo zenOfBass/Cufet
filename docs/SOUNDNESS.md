@@ -1,6 +1,6 @@
 # Soundness of the region model
 
-*Written 2026-11-13 against the checker and compiler as they stood at 0.29.0, and updated the same day after the first repair.*
+*Written 2026-11-13 against the checker and compiler as they stood at 0.29.0, and updated as each hole was closed, most recently on 2026-11-25.*
 
 This document answers one question: **can a program that passes `cufet check` read memory after the `Done.` that freed it?**
 

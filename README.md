@@ -110,7 +110,7 @@ In case of failure:
 Done.
 ```
 
-**Read files. Run programs. Cufet now touches the world:**
+**Read files. Run programs. Cufet touches the world:**
 ```cufet
 Try to:
     With the file "log.txt" open for writing as log:
@@ -257,7 +257,8 @@ tests/
   fixtures/soundness/                 — region-model probe programs (see that folder's README)
 examples/                             — runnable programs, by category
   basics/                             — the short ones to read first
-  algorithms/                         — dijkstra, n-queens, sudoku, huffman, life
+  algorithms/                         — dijkstra, n-queens, sudoku, huffman, life, and more
+  circuits/                           — a four-valued logic simulator, as a project
   structures/                         — trees, objects, unions
   parsing/                            — json, a recursive-descent parser, config files
   concurrency/                        — tasks and channels
@@ -267,9 +268,9 @@ examples/                             — runnable programs, by category
   expected/                           — pinned outputs, flat and keyed on the program's file name
 tools/                                — programs written IN Cufet, and the scripts that maintain the repo
   repl.cufe                           — a read-eval-print loop; hands each line to `cufet`
-  terminals.cufe                      — the terminal book: raw mode, keys, a line editor
-  shell.cufe                          — a working command shell in ~60 lines
-docs/                                 — REFERENCE, BOOKS, GRAMMAR, DESIGN, ROADMAP
+  terminals/                          — the terminal book: raw mode, keys, a line editor
+  shell.cufe                          — a working command shell
+docs/                                 — REFERENCE, BOOKS, GRAMMAR, DESIGN, SOUNDNESS, ROADMAP
 ```
 
 The lexer, parser, and type checker are **shared** by both backends, so a program that type-checks does so identically whether it is interpreted or compiled.

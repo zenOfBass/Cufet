@@ -17,7 +17,7 @@ Cufet borrows English's surface while keeping formal structure visible everywher
 **Read [docs/GRAMMAR.md](docs/GRAMMAR.md) first.** It is the single operational reference for writing correct Cufet: reserved keywords, one-canonical-way rules, `IExpression` vs. string distinctions, fallibility rules, sharp edges and how to navigate them. docs/GRAMMAR.md is continuously maintained — every feature slice updates it. If you are writing tests, examples, or new language features, docs/GRAMMAR.md is where to look before anything else.
 
 **Key things to know going in:**
-- `a`, `an`, `the` lex as `Article` tokens — they are noise, not identifiers. You *cannot* use `a` or `b` as variable names. Use `m`, `n`, `v`, `g`, `t`, or any other unambiguous single-letter name.
+- `a`, `an`, `the` lex as `Article` tokens — they are noise, not identifiers, so none of the three can be a variable name. Every other letter can.
 - `State` (capital S) is the print keyword — it's case-insensitive but the convention is capital-initial for keywords.
 - Arithmetic uses symbols (`+ - * / %`). Comparisons come in two forms — symbol (`= < > <= >=`) and word (`is greater than`, `is less than`, etc.) — and **both work in any position** (condition or expression). Word forms are idiomatic in `If`/`While` conditions; symbol forms are natural in expression position. Either is valid everywhere.
 - `Define` declares; `becomes` reassigns. They are not synonyms.
@@ -45,6 +45,8 @@ src/
     TypeChecker.Channels.cs             — channel type checking
     TypeChecker.Tasks.cs                — task-result type checking
     TypeChecker.Pipes.cs                — streaming pipe type checking
+    TypeChecker.Stores.cs               — region checks on stores
+    TypeChecker.Foreign.cs              — axioms (foreign source)
     Interpreter.Core.cs                 — evaluator entry points, EvaluateBinary
     Interpreter.Functions.cs            — function call dispatch, closures
     Interpreter.Objects.cs              — object/method dispatch
@@ -58,12 +60,15 @@ src/
     Interpreter.Channels.cs             — channel runtime + deep-copy-at-send
     Interpreter.Tasks.cs                — task-result runtime
     Interpreter.Pipes.cs                — streaming pipe runtime
+    Interpreter.Foreign.cs              — axiom runtime
   Compiler/        Cufet.Compiler       — native backend (AST → C source → gcc):
-    CodeGenerator.cs                    — the emitter; also hosts the C runtime as raw-string consts
+    CodeGenerator.cs                    — the emitter, split by concern
+                                          (.Expressions, .Statements, .Types)
+    CodeGenerator.Runtime.cs            — the C runtime, as raw-string consts
                                           (arena, software decimal, text, files, threads, signals)
     GccInvoker.cs                       — shells out to gcc
     CompilerException.cs                — clean deferral / refusal type
-  App/             Cufet.App            — thin console entry point (interpret / build / emit-c)
+  App/             Cufet.App            — thin console entry point (interpret / check / build / emit-c)
 tests/
   Lexer.Tests/     Cufet.Lexer.Tests
   Interpreter.Tests/  Cufet.Interpreter.Tests   (InterpreterTests.cs + many feature-specific test files)
@@ -85,10 +90,10 @@ The Parser is deliberately *not* split — its precedence chain is linear, so sp
 Requires [.NET 10 SDK](https://dotnet.microsoft.com/download), plus **gcc on `PATH`** for the compiler tests — they emit C and shell out to it.
 
 ```
-# Run all tests (the green baseline) — around 15 minutes, the compiler tests setting it
+# Run all tests (the green baseline) — the compiler tests take most of the time
 dotnet test Cufet.sln
 
-# The fast loop while working — the whole shared front end, 40 seconds
+# The fast loop while working — the whole shared front end, under two minutes
 dotnet test Cufet.sln --filter "FullyQualifiedName!~Compiler.Tests"
 
 # Run a Cufet program
@@ -106,7 +111,7 @@ dotnet run --project src\App\Cufet.App.csproj -- build tools\shell.cufe
 
 ⚠ **This repo has no root `blueprint.cufe`**, so plain `cufet build` does nothing here. Build a tool the long way instead, as above: that uses the compiler you are editing, where `cufet` from PATH would use whatever happens to be installed. A project that USES Cufet says `cufet` in its steps, but this repo IS Cufet, so a blueprint bootstrapping from PATH would always be one release behind its own source. DESIGN (*The build description, and what a project is*) holds the reasoning behind the build system.
 
-**Use the fast loop while working, and the full suite before pushing.** The lexer and interpreter are 2,430 tests in 40 seconds, and they cover the entire shared front end — where most changes land, since both backends are downstream of it. The compiler suite builds and runs programs through gcc: measured 2026-10-25 at **78 minutes of work in 15.3 minutes of wall clock**, a 5.1× overlap on eight cores. Nothing is skipped, only deferred to the moment it can still catch you.
+**Use the fast loop while working, and the full suite before pushing.** The lexer and interpreter are about 2,700 tests in under two minutes (1 m 46 s wall with the build, measured 2026-11-27), and they cover the entire shared front end — where most changes land, since both backends are downstream of it. The compiler suite builds and runs programs through gcc, so it is much slower. Nothing is skipped, only deferred to the moment it can still catch you.
 
 **The wall clock is set by the slowest CLASS, not by the sum.** xUnit runs one class's tests one after another, and other classes beside it. Today that floor is `CompilerParityTests` — the compiler written in Cufet, building its probes, the examples, and itself to a fixed point, which alone is four minutes and cannot be split. Twice a single test has quietly become the whole suite's time: `ExampleOracleTests` building a 33-file library program by program (2026-10-01), and `CheckerParityTests` checking every file of a large folder together with the whole folder (2026-10-25, 16 of 21 minutes). Read before guessing: `--logger trx` records each test's start, end and duration, and the class whose span ends last is the floor.
 
@@ -121,13 +126,13 @@ Remove-MpPreference -ExclusionPath "$env:TEMP\cufet-tests"   # to undo
 
 ⚠ **Do not buy the time back by lowering `-O2` in the harness.** It would work, and it costs the two things the suite exists for: `-O2` is what turns latent undefined behaviour into a wrong answer instead of a forgiving one, and a harness that compiles differently from `cufet build` stops testing what ships.
 
-The test baseline is roughly **2100 interpreter + 300 lexer + 1200 compiler**, all green. The exact total wobbles with feature churn; what matters is the floor — the load-bearing guarantee tests must stay present and passing:
+The test baseline is roughly **2,350 interpreter + 360 lexer + 1,570 compiler**, all green. The exact total wobbles with feature churn; what matters is the floor — the load-bearing guarantee tests must stay present and passing:
 
-- **Compiler oracle tests** (`tests/Compiler.Tests/PipelineTests.cs`) are now the primary correctness bar. Each compiles a program, runs the binary, and asserts its output equals the interpreter's. If the two disagree, that is a bug in one of them, never a caveat.
-- **Soundness fixtures** (`tests/fixtures/soundness/`) pin the region model — six programs that must be rejected, three that must compile and match.
+- **Compiler oracle tests** (the `Pipeline*Tests.cs` files in `tests/Compiler.Tests/`) are the primary correctness bar. Each compiles a program, runs the binary, and asserts its output equals the interpreter's. If the two disagree, that is a bug in one of them, never a caveat.
+- **Soundness fixtures** (`tests/fixtures/soundness/`) pin the region model — 55 programs that must be rejected (`escape-*`), 53 that must compile and match (`*-legal`).
 - Concurrency `join`/`close`/`deep-copy-isolation`, fallibility, map-key constraint.
 
-Some compiler tests are **Linux-only**: anything using POSIX features (concurrency, subprocess, signals) can't be built by mingw, and the sanitizer runs (ASan/LSan/TSan) are Linux-only too. They carry `[LinuxFact]` and are reported as **skipped** off Linux, so the run tells you: on Windows the compiler suite is **778 passed, 83 skipped**; on Linux it is **860 passed, 1 skipped** (one Windows-only test, `[WindowsFact]`).
+Some compiler tests are **Linux-only**: anything using POSIX features (concurrency, subprocess, signals) can't be built by mingw, and the sanitizer runs (ASan/LSan/TSan) are Linux-only too. They carry `[LinuxFact]` and are reported as **skipped** off Linux, so the run tells you: on Windows the compiler suite is **1,476 passed, 94 skipped**; on Linux it is **1,569 passed, 1 skipped** (one Windows-only test, `[WindowsFact]`).
 
 ⚠ **A skipped test has not run, so run the suite under WSL or Linux before claiming ANY change touching those areas is green** — not only a concurrency or memory-safety one. This instruction used to name those two, and the test that slipped through to CI was a **subprocess** test.
 
@@ -158,7 +163,7 @@ Each document answers exactly one question, so there is exactly one right place 
 | A codebase invariant a future change could break | CONTRIBUTING.md, *Implementation invariants* |
 | An accepted limitation | CONTRIBUTING.md, *Known limitations* |
 | **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
-| Released (minor version bump) | CHANGELOG.md, README.md line 1, docs/REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json`, **and then reinstall the global tool** — see *the tenth place* below |
+| Released (minor version bump) | CHANGELOG.md, **the nine places** under *The version lives in nine files* below, **and then reinstall the global tool** — see *the tenth place* below |
 
 **Every code block in the docs says what it is, and the suite holds it to that.** A sample that does not run is worse than no sample: a reader copies it, it fails, and they conclude the language is broken. `DocBlockTests` is the gate, and the fence tag is the promise:
 
@@ -208,7 +213,7 @@ Docs that go stale are worse than no docs. If code and docs disagree, the code i
 
 ## Design philosophy
 
-**One canonical way.** Cufet has one way to say each thing. `+` means arithmetic addition (or matrix product for matrices — same surface, one semantic per type pair). `joined to` means text concatenation. `is greater than` means numeric comparison — and so does `>`. Both symbol and word comparison forms work in any position; the choice is stylistic. There are no synonyms for *operations*; the rigor lives in the single fixed surface for each semantic. When proposing a new construct, check whether an existing one already covers it.
+**One canonical way.** Cufet has one way to say each thing. `+` means arithmetic addition (element by element for matrices — same surface, one semantic per type pair). `joined to` means text concatenation. `is greater than` means numeric comparison — and so does `>`. Both symbol and word comparison forms work in any position; the choice is stylistic. There are no synonyms for *operations*; the rigor lives in the single fixed surface for each semantic. When proposing a new construct, check whether an existing one already covers it.
 
 **Natural language over jargon.** Keywords read like English words in the roles they play: `State` (print), `Define` (declare), `becomes` (assign), `Try to:` (error handling). New keywords should pass the "reads like a sentence" test.
 
@@ -216,7 +221,7 @@ Docs that go stale are worse than no docs. If code and docs disagree, the code i
 
 **Warmth scales with teachable content.** Error messages earn warmth when there is a genuine *why* and an *actionable fix*. A warm three-line error is not the default — it is the reward for finding the right explanation. Terse + located (one line with a line number) is the right default for everything else.
 
-**The outward-only memory invariant.** Values may escape to a *longer-lived* region but never *inward* to a shorter-lived one. This is the whole safety story for the regions model. Any feature that touches region depths, function return values, or captures must be checked against this invariant. See the soundness arc narrative in [docs/DESIGN.md](docs/DESIGN.md).
+**The outward-only memory invariant.** Values may escape to a *longer-lived* region but never *inward* to a shorter-lived one. This is the whole safety story for the regions model. Any feature that touches region depths, function return values, or captures must be checked against this invariant. [docs/SOUNDNESS.md](docs/SOUNDNESS.md) has the rules, what is proved and what is only tested.
 
 ---
 
@@ -224,8 +229,7 @@ Docs that go stale are worse than no docs. If code and docs disagree, the code i
 
 The interpreter is the **oracle**. A program's compiled output must equal its interpreted output. This is the project's central correctness discipline, and it has one sharp edge worth stating plainly:
 
-> **A divergence never ships as a documented caveat.** If the same program takes a different branch, or prints something different, compiled versus interpreted, that is a bug in one of them. Either make it precise on both sides, or have the compiler
-> **refuse** — a clean `CompilerException` is honest; silence is not.
+> **A divergence never ships as a documented caveat.** If the same program takes a different branch, or prints something different, compiled versus interpreted, that is a bug in one of them. Either make it precise on both sides, or have the compiler **refuse** — a clean `CompilerException` is honest; silence is not.
 
 The narrow exception is behavior that is *genuinely* undefined or platform-owned, where there is no single right answer to converge on: last-ULP differences in `pow` (`Math.Pow` *is* the platform libm), and filesystem enumeration order. Two well-defined behaviors differing is never in that category.
 
@@ -243,7 +247,7 @@ Two consequences for contributors:
 
 These are open tasks that are explicitly tracked, not forgotten:
 
-- **Formal soundness proof / fresh-eyes red-team** — the three-hole adversarial arc (all closed) was adversarial-find-and-fix, not a formal proof. A contributor with a background in type theory could take on a formal proof of the outward-only invariant, or a fresh-eyes red-team to look for holes that the original arc missed. The native backend makes this more valuable, not less: the interpreter's GC forgives a region error that compiled code turns into a use-after-free.
+- **Soundness proof for the whole language / fresh-eyes red-team** — [docs/SOUNDNESS.md](docs/SOUNDNESS.md) proves the region rules for a core of the language only; the rest of the language (its section 8), and O2 and O4 as built, are checked by probes, the suite and random programs, not proved. A contributor with a background in type theory could extend the proof, or red-team for holes the searches missed. The native backend makes this more valuable, not less: the interpreter's GC forgives a region error that compiled code turns into a use-after-free.
 
 - **Move-semantics at channel send** — sends currently deep-copy the value across the thread boundary, which is sound but not free. A move (with the sender's binding invalidated) would avoid the copy.
 
@@ -257,7 +261,7 @@ These are open tasks that are explicitly tracked, not forgotten:
 
 Things that are true of the codebase and must stay true. Breaking one of these tends to fail quietly rather than loudly, which is why they are written down.
 
-- **A new `CufetType` must be named in every per-type switch, or say why not.** `ExhaustivenessTests` runs all 27 types through `EmitCType`, `TypeSig`, `FormatTypeName`, `EqCall` and `WriteCall`, and fails on a refusal that is not listed in its `DeliberateRefusals` table with a reason. Adding a type therefore tells you exactly which switches to visit. **A refusal with no reason is how a missing arm hides** — it looks identical to a decision until a program hits it. The table's other half matters too: a listed refusal that starts succeeding also fails the test, so the table cannot rot into fiction.
+- **A new `CufetType` must be named in every per-type switch, or say why not.** `ExhaustivenessTests` runs all 30 types through `EmitCType`, `TypeSig`, `FormatTypeName`, `EqCall` and `WriteCall`, and fails on a refusal that is not listed in its `DeliberateRefusals` table with a reason. Adding a type therefore tells you exactly which switches to visit. **A refusal with no reason is how a missing arm hides** — it looks identical to a decision until a program hits it. The table's other half matters too: a listed refusal that starts succeeding also fails the test, so the table cannot rot into fiction.
 
   **A switch whose fallback returns a plausible answer must be changed to throw before the audit can see it**, because the audit reads refusal as "unhandled". `EmitStructs`' `DepName` was the case in point: a local function ending in `_ => null`, where null reads as "depends on nothing" — so a missing arm ordered a struct above its own typedef and gcc said "unknown type name". It is now `DepStructName`, a private method with an explicit no-dependency list and a throwing fallback, and it is audited like the rest.
 
@@ -273,7 +277,7 @@ Things that are true of the codebase and must stay true. Breaking one of these t
 
 - **I/O failure boundary is at the .NET edge, not inside Cufet.** All .NET `IOException`/`UnauthorizedAccessException`/`Win32Exception` are translated to `FailureUnwind` at the outermost call site (file open, file read, process launch). Cufet code never sees a .NET exception from an I/O operation — only a Cufet failure. This invariant must be preserved when adding new I/O primitives: always wrap the outermost .NET call, not inner helpers.
 
-- **`_inTryBlock` flag controls file-read type inference.** Inside a `Try` block, `InferFileReadExpr` and `InferRunExpr` return the plain success type (not `failure T`), because the `Try` block is the designated handler. This allows reading results directly without `or pass the failure off`. Outside a `Try` block, the failable type is returned and must be handled. Any new I/O primitive that produces a failable value should follow this same pattern — check `_inTryBlock` in `InferType`, and return the unwrapped type when true.
+- **`_inTryBlock` flag controls file-read type inference.** Inside the body of a `Try` that has an `In case of failure:` handler, `InferFileReadExpr` and `InferRunExpr` return the plain success type (not `failure T`), because that handler is the designated one. This allows reading results directly without `or pass the failure off`. Elsewhere, the failable type is returned and must be handled. Any new I/O primitive that produces a failable value should follow this same pattern — check `_inTryBlock` as `InferFileReadExpr` does, and return the unwrapped type when true. A new I/O *statement*, which produces no value, calls `RequireHandledStatement` instead, as writing a file and `With … open` do.
 
 - **`ExecuteWithOpen` uses `try/finally` for stream lifecycle.** The scope is entered and the stream is bound before the `try`, so the `finally` always has the stream to dispose. This is the correct pattern — do not push `EnterScope` inside the `try`, because then an open failure would skip `ExitScope`. New scoped-resource primitives should follow the same structure: open → EnterScope → bind → try { body } finally { ExitScope; Dispose }.
 
@@ -285,15 +289,11 @@ Things that are true of the codebase and must stay true. Breaking one of these t
 
 Behaviour that is understood, deliberate or accepted — not bugs waiting to be found. User-facing sharp edges are also called out in [docs/GRAMMAR.md](docs/GRAMMAR.md) §8.
 
-- **`converted to text` precedence in named-access position** — `the value of person converted to text` parses as `the value of (person converted to text)`, because the named-access path's inner expression parse absorbs the postfix `converted to text`. Workaround: name the access first (`Define v as the value of person. State v converted to text.`). Pre-existing; consistent with the "name your values" guidance, so acceptable. Revisit if it bites in practice.
-
 - **Nested-function-type parameter placeholder names** — in a function-type annotation, a nested function-type parameter requires a placeholder name that is parsed and discarded. Minor syntax wart. Acceptable; revisit only if nested function types become common (unlikely).
 
 - **`or pass the failure off` on file reads inside `Try`** — inside a `Try` block, `InferFileReadExpr` returns the plain success type (not `failure T`), because the `Try` block is already the handler. This means `or pass the failure off` on a file read inside `Try` is a static type error — correctly rejected, since there's nothing to propagate past the enclosing `Try`. If you need both "catch some failures here" and "propagate others to my caller," use `or pass the failure off` outside the `Try` block instead.
 
 - **`With ... open for writing` always truncates** — opening a file for writing via the stream form always creates or truncates; append mode for streams is deferred (use `append ... to the file` for whole-value appends in the meantime).
-
-- **Captured-state mutation in tasks — enforced when compiled, unenforced when interpreted.** The rule is: **task bodies must not mutate anything captured from an outer scope** — a plain number as much as a series. Compiled, this is a compile-time refusal (see the concurrency section above for why refusing beats copying). Interpreted, it is still merely a convention — the interpreter gives task bodies the live enclosing binding and one task runs at a time, so nothing goes wrong, but nothing stops you either. Write to the rule and both backends agree; break it and the compiler tells you.
 
 - **SIGINT interruptibility differs by backend.** *Interpreted:* yield-point-only. `Yield.`, blocked channel receives, and blocked task-awaits are interrupt points, so a program that yields naturally is interruptible without polling — but a tight loop with no yield points is not. *Compiled:* genuinely preemptive, via a real `sigaction` handler and per-thread `sigsetjmp` landing pads. A thread blocked in a channel receive really wakes, and a running worker task really unwinds — running its destructors and closing its files on the way out.
 
