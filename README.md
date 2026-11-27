@@ -162,7 +162,7 @@ Done.
 emit-numbers | print-doubled.
 ```
 
-**Command substitution — compose shell commands:**
+**Run a program and use what it printed:**
 ```cufet
 Try to:
     Define result as run "git" with arguments ("log", "--oneline", "-5").
