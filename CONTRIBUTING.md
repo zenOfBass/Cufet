@@ -251,9 +251,7 @@ These are open tasks that are explicitly tracked, not forgotten:
 
 - **Move-semantics at channel send** — sends currently deep-copy the value across the thread boundary, which is sound but not free. A move (with the sender's binding invalidated) would avoid the copy.
 
-*(Previously listed here and since completed: Approach B parser-hardening, true preemptive SIGINT, task-lifetime memory scoping, fan-out distribution under OS threads, and the REFERENCE chapters for concurrency, pipes, regions, books, matrix and operator overloading.)*
-
-**Approach B was filed here as "theoretical fragility" and it was not.** It was holding three live bugs: a user-defined generic could not be written as a `Define`'s type, as a parameter type, or as a return type. Nothing caught them because every generic annotation in the corpus is `series of number` — a BUILT-IN, which leads with its own keyword and so never met the fault. The lesson is the one this file already states about lists: a debt that has sat a long time without a reproducer has not been shown to be harmless, only unexercised.
+A debt that has sat here a long time without a reproducer has not been shown to be harmless, only unexercised: one filed as "theoretical fragility" turned out to be holding live bugs.
 
 ---
 
